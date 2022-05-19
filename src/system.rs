@@ -212,11 +212,15 @@ impl System {
             ccdr.peripheral.DMA1,
             device.SAI1,
             ccdr.peripheral.SAI1,
+            device.I2C2,
+            ccdr.peripheral.I2C2,
             gpioe.pe2,
             gpioe.pe3,
             gpioe.pe4,
             gpioe.pe5,
             gpioe.pe6,
+            gpioh.ph4,
+            gpiob.pb11,
             &ccdr.clocks,
             &mut core.MPU,
             &mut core.SCB,
@@ -225,7 +229,6 @@ impl System {
         // Setup GPIOs
         let gpio = crate::gpio::GPIO::init(
             gpioc.pc7,
-            gpiob.pb11,
             Some(gpiob.pb12),
             Some(gpioc.pc11),
             Some(gpioc.pc10),

@@ -4,15 +4,21 @@ use log::info;
 
 use stm32h7xx_hal::{
     dma,
-    gpio::{gpioe, Analog},
+    gpio::{gpiob, gpioe, gpioh, Analog},
+    i2c::*,
     pac, rcc,
     rcc::rec,
     sai,
     sai::*,
     stm32,
     stm32::rcc::d2ccip1r::SAI1SEL_A,
+    time,
     traits::i2s::FullDuplex,
 };
+
+use cortex_m::asm;
+use cortex_m::prelude::_embedded_hal_blocking_i2c_Write;
+use num_enum::IntoPrimitive;
 
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
@@ -122,12 +128,19 @@ impl Audio {
         dma1_p: rec::Dma1,
         sai1_d: stm32::SAI1,
         sai1_p: rec::Sai1,
+        i2c2_d: stm32::I2C2,
+        i2c2_p: rec::I2c2,
 
-        pe2: gpioe::PE2<Analog>,
-        pe3: gpioe::PE3<Analog>,
-        pe4: gpioe::PE4<Analog>,
-        pe5: gpioe::PE5<Analog>,
-        pe6: gpioe::PE6<Analog>,
+        // SAI pins
+        sai_mclk_a: gpioe::PE2<Analog>,
+        sai_sd_b: gpioe::PE3<Analog>,
+        sai_fs_a: gpioe::PE4<Analog>,
+        sai_sck_a: gpioe::PE5<Analog>,
+        sai_sd_a: gpioe::PE6<Analog>,
+
+        //I2C pins
+        i2c_scl: gpioh::PH4<Analog>,
+        i2c_sda: gpiob::PB11<Analog>,
 
         clocks: &rcc::CoreClocks,
         mpu: &mut cortex_m::peripheral::MPU,
@@ -177,11 +190,11 @@ impl Audio {
             .set_frame_sync_active_high(true);
 
         let pins_a = (
-            pe2.into_alternate(),       // MCLK_A
-            pe5.into_alternate(),       // SCK_A
-            pe4.into_alternate(),       // FS_A
-            pe6.into_alternate(),       // SD_A
-            Some(pe3.into_alternate()), // SD_B
+            sai_mclk_a.into_alternate_af6(),
+            sai_sck_a.into_alternate_af6(),
+            sai_fs_a.into_alternate_af6(),
+            sai_sd_a.into_alternate_af6(),
+            Some(sai_sd_b.into_alternate_af6()),
         );
 
         // Hand off to audio module
@@ -194,6 +207,28 @@ impl Audio {
             I2sUsers::new(master_config).add_slave(slave_config),
         );
 
+        info!("Setup up WM8731 Audio Codec...");
+        let i2c2_pins = (i2c_scl.into_alternate_af4(), i2c_sda.into_alternate_af4());
+
+        let mut i2c = i2c2_d.i2c(i2c2_pins, time::Hertz(100_000), i2c2_p, clocks);
+
+        let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
+
+        // Go through configuration setup
+        for (register, value) in REGISTER_CONFIG {
+            let register: u8 = (*register).into();
+            let value: u8 = (*value).into();
+            let byte1: u8 = ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
+            let byte2: u8 = value & 0b1111_1111;
+            let bytes = [byte1, byte2];
+
+            i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
+
+            // wait ~10us
+            asm::delay(5_000);
+        }
+
+        info!("Start audio stream...");
         input_stream.start(|_sai1_rb| {
             sai.enable_dma(SaiChannel::ChannelB);
         });
@@ -386,3 +421,44 @@ impl Iterator for Mono<'_> {
         }
     }
 }
+
+// - WM8731 codec register addresses -------------------------------------------------
+
+#[allow(non_camel_case_types)]
+#[derive(Debug, Copy, Clone, IntoPrimitive)]
+#[repr(u8)]
+enum Register {
+    LINVOL = 0x00,
+    RINVOL = 0x01,
+    LOUT1V = 0x02,
+    ROUT1V = 0x03,
+    APANA = 0x04,
+    APDIGI = 0x05, // 0000_0101
+    PWR = 0x06,
+    IFACE = 0x07,  // 0000_0111
+    SRATE = 0x08,  // 0000_1000
+    ACTIVE = 0x09, // 0000_1001
+    RESET = 0x0F,
+}
+
+const REGISTER_CONFIG: &[(Register, u8)] = &[
+    // reset Codec
+    (Register::RESET, 0x00),
+    // set line inputs 0dB
+    (Register::LINVOL, 0x17),
+    (Register::RINVOL, 0x17),
+    // set headphone to mute
+    (Register::LOUT1V, 0x00),
+    (Register::ROUT1V, 0x00),
+    // set analog and digital routing
+    (Register::APANA, 0x12),
+    (Register::APDIGI, 0x01),
+    // configure power management
+    (Register::PWR, 0x42),
+    // configure digital format
+    (Register::IFACE, 0x0A),
+    // set samplerate
+    (Register::SRATE, 0x00),
+    (Register::ACTIVE, 0x00),
+    (Register::ACTIVE, 0x01),
+];
