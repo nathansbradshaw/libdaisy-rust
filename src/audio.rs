@@ -152,7 +152,7 @@ impl Audio {
         let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
 
         // dma1 stream 0
-        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
         let dma_config = dma::dma::DmaConfig::default()
             .priority(dma::config::Priority::High)
             .memory_increment(true)
@@ -163,13 +163,13 @@ impl Audio {
             dma::Transfer::init(
                 dma1_streams.0,
                 unsafe { pac::Peripherals::steal().SAI1 },
-                tx_buffer,
+                rx_buffer,
                 None,
                 dma_config,
             );
 
         // dma1 stream 1
-        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
@@ -177,15 +177,15 @@ impl Audio {
             dma::Transfer::init(
                 dma1_streams.1,
                 unsafe { pac::Peripherals::steal().SAI1 },
-                rx_buffer,
+                tx_buffer,
                 None,
                 dma_config,
             );
 
         info!("Setup up SAI...");
         let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
-        let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
-        let slave_config = I2SChanConfig::new(I2SDir::Rx)
+        let master_config = I2SChanConfig::new(I2SDir::Rx).set_frame_sync_active_high(true);
+        let slave_config = I2SChanConfig::new(I2SDir::Tx)
             .set_sync_type(I2SSync::Internal)
             .set_frame_sync_active_high(true);
 
@@ -206,6 +206,17 @@ impl Audio {
             clocks,
             I2sUsers::new(master_config).add_slave(slave_config),
         );
+
+        // Manually configure Channel B as transmit stream
+        let dma1_reg = unsafe { pac::Peripherals::steal().DMA1 };
+        dma1_reg.st[0]
+            .cr
+            .modify(|_, w| w.dir().peripheral_to_memory());
+
+        // Manually configure Channel A as receive stream
+        dma1_reg.st[1]
+            .cr
+            .modify(|_, w| w.dir().memory_to_peripheral());
 
         info!("Setup up WM8731 Audio Codec...");
         let i2c2_pins = (i2c_scl.into_alternate_af4(), i2c_sda.into_alternate_af4());
@@ -230,15 +241,15 @@ impl Audio {
 
         info!("Start audio stream...");
         input_stream.start(|_sai1_rb| {
-            sai.enable_dma(SaiChannel::ChannelB);
+            sai.enable_dma(SaiChannel::ChannelA);
         });
 
         output_stream.start(|sai1_rb| {
-            sai.enable_dma(SaiChannel::ChannelA);
+            sai.enable_dma(SaiChannel::ChannelB);
 
             // wait until sai1's fifo starts to receive data
             info!("Sai1 fifo waiting to receive data.");
-            while sai1_rb.cha().sr.read().flvl().is_empty() {}
+            while sai1_rb.chb().sr.read().flvl().is_empty() {}
             info!("Audio started!");
             sai.enable();
             sai.try_send(0, 0).unwrap();
