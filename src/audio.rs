@@ -22,7 +22,7 @@ use num_enum::IntoPrimitive;
 
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
-pub const BLOCK_SIZE_MAX: usize = 48;
+pub const BLOCK_SIZE_MAX: usize = 1024;
 pub const DMA_BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
 
 pub type DmaBuffer = [u32; DMA_BUFFER_SIZE];
