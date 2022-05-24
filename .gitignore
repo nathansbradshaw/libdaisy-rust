@@ -5,7 +5,7 @@ Cargo.lock
 *.bin
 .gdb_history
 Embed.toml
-
+/logs
 # editor files
 .vscode/*
 !.vscode/*.md
