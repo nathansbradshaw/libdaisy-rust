@@ -22,7 +22,7 @@ use num_enum::IntoPrimitive;
 
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
-pub const BLOCK_SIZE_MAX: usize = 1024;
+pub const BLOCK_SIZE_MAX: usize = 512;
 pub const DMA_BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
 
 pub type DmaBuffer = [u32; DMA_BUFFER_SIZE];
@@ -184,10 +184,10 @@ impl Audio {
 
         info!("Setup up SAI...");
         let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
-        let master_config = I2SChanConfig::new(I2SDir::Rx).set_frame_sync_active_high(true);
+        let master_config = I2SChanConfig::new(I2SDir::Rx).set_frame_sync_active_high(false);
         let slave_config = I2SChanConfig::new(I2SDir::Tx)
             .set_sync_type(I2SSync::Internal)
-            .set_frame_sync_active_high(true);
+            .set_frame_sync_active_high(false);
 
         let pins_a = (
             sai_mclk_a.into_alternate_af6(),
