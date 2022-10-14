@@ -22,7 +22,7 @@ use num_enum::IntoPrimitive;
 
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
-pub const BLOCK_SIZE_MAX: usize = 512;
+pub const BLOCK_SIZE_MAX: usize = 1024;
 pub const DMA_BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
 
 pub type DmaBuffer = [u32; DMA_BUFFER_SIZE];
@@ -66,7 +66,7 @@ type DmaOutputStream = dma::Transfer<
 type StereoIteratorHandle = fn(StereoIterator, &mut Output);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-struct S24(i32);
+pub struct S24(i32);
 
 impl From<i32> for S24 {
     fn from(x: i32) -> S24 {
@@ -463,11 +463,11 @@ const REGISTER_CONFIG: &[(Register, u8)] = &[
     (Register::ROUT1V, 0x00),
     // set analog and digital routing
     (Register::APANA, 0x12),
-    (Register::APDIGI, 0x01),
+    (Register::APDIGI, 0x00),
     // configure power management
     (Register::PWR, 0x42),
     // configure digital format
-    (Register::IFACE, 0x0A),
+    (Register::IFACE, 0b1001),
     // set samplerate
     (Register::SRATE, 0x00),
     (Register::ACTIVE, 0x00),
