@@ -28,6 +28,7 @@ pub struct Sdram {
 
 impl Sdram {
     /// Initialize the sdram
+    #[allow(clippy::too_many_arguments)]
     pub fn new<D: DelayUs<u8>>(
         fmc_d: stm32::FMC,
         fmc_p: rcc::rec::Fmc,
@@ -138,12 +139,12 @@ impl Sdram {
     }
 }
 
-impl<T: Sized> Into<&'static mut [T]> for Sdram {
-    fn into(self) -> &'static mut [T] {
+impl<T: Sized> From<Sdram> for &'static mut [T] {
+    fn from(val: Sdram) -> Self {
         unsafe {
             core::slice::from_raw_parts_mut(
-                self.inner as *mut T,
-                Self::bytes() / core::mem::size_of::<T>(),
+                val.inner as *mut T,
+                Sdram::bytes() / core::mem::size_of::<T>(),
             )
         }
     }

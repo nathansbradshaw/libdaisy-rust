@@ -7,6 +7,7 @@ use stm32h7xx_hal::{
 };
 
 /// Boiler plate to create SDMMC1
+#[allow(clippy::too_many_arguments)]
 pub fn init<P: SdmmcPeripheral>(
     daisy1: gpio::gpioc::PC11<Analog>,
     daisy2: gpio::gpioc::PC10<Analog>,

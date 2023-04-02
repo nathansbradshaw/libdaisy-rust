@@ -64,20 +64,12 @@ where
 
     /// Set the threshold in number of calls to update.
     pub fn set_held_thresh(&mut self, held_threshold: Option<u32>) {
-        self.held_threshold = if let Some(held_threshold) = held_threshold {
-            Some(held_threshold)
-        } else {
-            None
-        };
+        self.held_threshold = held_threshold;
     }
 
     /// Set the threshold in number of calls to update.
     pub fn set_double_thresh(&mut self, double_threshold: Option<u32>) {
-        self.double_threshold = if let Some(double_threshold) = double_threshold {
-            Some(double_threshold)
-        } else {
-            None
-        };
+        self.double_threshold = double_threshold;
     }
 
     /// Read the state of the switch and update status. This should be called on a timer.
@@ -339,11 +331,7 @@ where
             self.pwm -= 1.0;
         }
 
-        let is_bright = if self.brightness > self.pwm {
-            true
-        } else {
-            false
-        };
+        let is_bright = self.brightness > self.pwm;
         match self.blink_status {
             BlinkStatus::On => self.pin.set_high().ok().unwrap(),
             BlinkStatus::Off => self.pin.set_low().ok().unwrap(),

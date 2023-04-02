@@ -83,6 +83,7 @@ pub struct GPIO {
 
 impl GPIO {
     /// Initialize the GPIOs
+    #[allow(clippy::too_many_arguments)]
     pub fn init(
         seed_led: gpio::gpioc::PC7<Analog>,
         codec: gpio::gpiob::PB11<Analog>,
