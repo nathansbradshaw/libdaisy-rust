@@ -1,5 +1,7 @@
 //! Audio module. Handles audio startup and I/O.
 //! As well as converting between the S24 input and f32 for processing.
+use core::u8;
+
 use log::info;
 
 use stm32h7xx_hal::{
@@ -18,7 +20,6 @@ use stm32h7xx_hal::{
 
 use cortex_m::asm;
 use cortex_m::prelude::_embedded_hal_blocking_i2c_Write;
-use num_enum::IntoPrimitive;
 
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
@@ -439,7 +440,7 @@ impl Iterator for Mono<'_> {
 // - WM8731 codec register addresses -------------------------------------------------
 
 #[allow(non_camel_case_types)]
-#[derive(Debug, Copy, Clone, IntoPrimitive)]
+#[derive(Debug, Copy, Clone)]
 #[repr(u8)]
 enum Register {
     Linvol = 0x00,
@@ -453,6 +454,24 @@ enum Register {
     Srate = 0x08,  // 0000_1000
     Active = 0x09, // 0000_1001
     Reset = 0x0F,
+}
+
+impl From<Register> for u8 {
+    fn from(value: Register) -> Self {
+        match value {
+            Register::Linvol => 0x00,
+            Register::Rinvol => 0x01,
+            Register::LOUT1V => 0x02,
+            Register::ROUT1V => 0x03,
+            Register::Apana => 0x04,
+            Register::Apdigi => 0x05, // 0000_0101
+            Register::Pwr => 0x06,
+            Register::Iface => 0x07,  // 0000_0111
+            Register::Srate => 0x08,  // 0000_1000
+            Register::Active => 0x09, // 0000_1001
+            Register::Reset => 0x0F,
+        }
+    }
 }
 
 const REGISTER_CONFIG: &[(Register, u8)] = &[
