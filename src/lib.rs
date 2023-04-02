@@ -36,7 +36,3 @@ pub mod system;
 pub fn delay_ms(ms: u32) {
     delay_cycles(ms * MILICYCLES);
 }
-
-// pub fn ms_to_cycles(ms: u32) {
-
-// }

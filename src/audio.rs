@@ -4,19 +4,24 @@ use log::info;
 
 use stm32h7xx_hal::{
     dma,
-    gpio::{gpioe, Analog},
+    gpio::{gpiob, gpioe, gpioh, Analog},
+    i2c::*,
     pac, rcc,
     rcc::rec,
     sai,
     sai::*,
     stm32,
     stm32::rcc::d2ccip1r::SAI1SEL_A,
+    time::Hertz,
     traits::i2s::FullDuplex,
 };
 
+use cortex_m::asm;
+use cortex_m::prelude::_embedded_hal_blocking_i2c_Write;
+
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
-pub const BLOCK_SIZE_MAX: usize = 48;
+pub const BLOCK_SIZE_MAX: usize = 1024;
 pub const DMA_BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
 
 pub type DmaBuffer = [u32; DMA_BUFFER_SIZE];
@@ -122,12 +127,19 @@ impl Audio {
         dma1_p: rec::Dma1,
         sai1_d: stm32::SAI1,
         sai1_p: rec::Sai1,
+        i2c2_d: stm32::I2C2,
+        i2c2_p: rec::I2c2,
 
-        pe2: gpioe::PE2<Analog>,
-        pe3: gpioe::PE3<Analog>,
-        pe4: gpioe::PE4<Analog>,
-        pe5: gpioe::PE5<Analog>,
-        pe6: gpioe::PE6<Analog>,
+        // SAI pins
+        sai_mclk_a: gpioe::PE2<Analog>,
+        sai_sd_b: gpioe::PE3<Analog>,
+        sai_fs_a: gpioe::PE4<Analog>,
+        sai_sck_a: gpioe::PE5<Analog>,
+        sai_sd_a: gpioe::PE6<Analog>,
+
+        //I2C pins
+        i2c_scl: gpioh::PH4<Analog>,
+        i2c_sda: gpiob::PB11<Analog>,
 
         clocks: &rcc::CoreClocks,
         mpu: &mut cortex_m::peripheral::MPU,
@@ -139,7 +151,7 @@ impl Audio {
         let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
 
         // dma1 stream 0
-        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
         let dma_config = dma::dma::DmaConfig::default()
             .priority(dma::config::Priority::High)
             .memory_increment(true)
@@ -150,13 +162,13 @@ impl Audio {
             dma::Transfer::init(
                 dma1_streams.0,
                 unsafe { pac::Peripherals::steal().SAI1 },
-                tx_buffer,
+                rx_buffer,
                 None,
                 dma_config,
             );
 
         // dma1 stream 1
-        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
@@ -164,24 +176,24 @@ impl Audio {
             dma::Transfer::init(
                 dma1_streams.1,
                 unsafe { pac::Peripherals::steal().SAI1 },
-                rx_buffer,
+                tx_buffer,
                 None,
                 dma_config,
             );
 
         info!("Setup up SAI...");
         let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
-        let master_config = I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(true);
-        let slave_config = I2SChanConfig::new(I2SDir::Rx)
+        let master_config = I2SChanConfig::new(I2SDir::Rx).set_frame_sync_active_high(false);
+        let slave_config = I2SChanConfig::new(I2SDir::Tx)
             .set_sync_type(I2SSync::Internal)
-            .set_frame_sync_active_high(true);
+            .set_frame_sync_active_high(false);
 
         let pins_a = (
-            pe2.into_alternate(),       // MCLK_A
-            pe5.into_alternate(),       // SCK_A
-            pe4.into_alternate(),       // FS_A
-            pe6.into_alternate(),       // SD_A
-            Some(pe3.into_alternate()), // SD_B
+            sai_mclk_a.into_alternate(),
+            sai_sck_a.into_alternate(),
+            sai_fs_a.into_alternate(),
+            sai_sd_a.into_alternate(),
+            Some(sai_sd_b.into_alternate()),
         );
 
         // Hand off to audio module
@@ -194,16 +206,52 @@ impl Audio {
             I2sUsers::new(master_config).add_slave(slave_config),
         );
 
+        // Manually configure Channel B as transmit stream
+        let dma1_reg = unsafe { pac::Peripherals::steal().DMA1 };
+        dma1_reg.st[0]
+            .cr
+            .modify(|_, w| w.dir().peripheral_to_memory());
+
+        // Manually configure Channel A as receive stream
+        dma1_reg.st[1]
+            .cr
+            .modify(|_, w| w.dir().memory_to_peripheral());
+
+        info!("Setup up WM8731 Audio Codec...");
+        let i2c2_pins = (
+            i2c_scl.into_alternate_open_drain(),
+            i2c_sda.into_alternate_open_drain(),
+        );
+
+        let mut i2c = i2c2_d.i2c(i2c2_pins, Hertz::from_raw(100_000), i2c2_p, clocks);
+
+        let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
+
+        // Go through configuration setup
+        for (register, value) in REGISTER_CONFIG {
+            let register: u8 = (*register).into();
+            let value: u8 = *value;
+            let byte1: u8 = ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
+            let byte2: u8 = value;
+            let bytes = [byte1, byte2];
+
+            i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
+
+            // wait ~10us
+            asm::delay(5_000);
+        }
+
+        info!("Start audio stream...");
         input_stream.start(|_sai1_rb| {
-            sai.enable_dma(SaiChannel::ChannelB);
+            sai.enable_dma(SaiChannel::ChannelA);
         });
 
         output_stream.start(|sai1_rb| {
-            sai.enable_dma(SaiChannel::ChannelA);
+            sai.enable_dma(SaiChannel::ChannelB);
 
             // wait until sai1's fifo starts to receive data
             info!("Sai1 fifo waiting to receive data.");
-            while sai1_rb.cha().sr.read().flvl().is_empty() {}
+            while sai1_rb.chb().sr.read().flvl().is_empty() {}
             info!("Audio started!");
             sai.enable();
             sai.try_send(0, 0).unwrap();
@@ -386,3 +434,62 @@ impl Iterator for Mono<'_> {
         }
     }
 }
+
+// - WM8731 codec register addresses -------------------------------------------------
+
+#[allow(non_camel_case_types)]
+#[derive(Debug, Copy, Clone)]
+#[repr(u8)]
+enum Register {
+    Linvol = 0x00,
+    Rinvol = 0x01,
+    LOUT1V = 0x02,
+    ROUT1V = 0x03,
+    Apana = 0x04,
+    Apdigi = 0x05, // 0000_0101
+    Pwr = 0x06,
+    Iface = 0x07,  // 0000_0111
+    Srate = 0x08,  // 0000_1000
+    Active = 0x09, // 0000_1001
+    Reset = 0x0F,
+}
+
+impl From<Register> for u8 {
+    fn from(value: Register) -> Self {
+        match value {
+            Register::Linvol => 0x00,
+            Register::Rinvol => 0x01,
+            Register::LOUT1V => 0x02,
+            Register::ROUT1V => 0x03,
+            Register::Apana => 0x04,
+            Register::Apdigi => 0x05, // 0000_0101
+            Register::Pwr => 0x06,
+            Register::Iface => 0x07,  // 0000_0111
+            Register::Srate => 0x08,  // 0000_1000
+            Register::Active => 0x09, // 0000_1001
+            Register::Reset => 0x0F,
+        }
+    }
+}
+
+const REGISTER_CONFIG: &[(Register, u8)] = &[
+    // reset Codec
+    (Register::Reset, 0x00),
+    // set line inputs 0dB
+    (Register::Linvol, 0x17),
+    (Register::Rinvol, 0x17),
+    // set headphone to mute
+    (Register::LOUT1V, 0x00),
+    (Register::ROUT1V, 0x00),
+    // set analog and digital routing
+    (Register::Apana, 0x12),
+    (Register::Apdigi, 0x00),
+    // configure power management
+    (Register::Pwr, 0x42),
+    // configure digital format
+    (Register::Iface, 0b1001),
+    // set samplerate
+    (Register::Srate, 0x00),
+    (Register::Active, 0x00),
+    (Register::Active, 0x01),
+];
