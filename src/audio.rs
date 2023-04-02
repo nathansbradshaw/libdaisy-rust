@@ -48,16 +48,16 @@ pub type AudioBuffer = [(f32, f32); BLOCK_SIZE_MAX];
 
 type DmaInputStream = dma::Transfer<
     dma::dma::Stream1<stm32::DMA1>,
-    stm32::SAI1,
-    dma::PeripheralToMemory,
+    sai::dma::ChannelB<stm32::SAI1>,
+    dma::MemoryToPeripheral,
     &'static mut [u32; DMA_BUFFER_SIZE],
     dma::DBTransfer,
 >;
 
 type DmaOutputStream = dma::Transfer<
     dma::dma::Stream0<stm32::DMA1>,
-    stm32::SAI1,
-    dma::MemoryToPeripheral,
+    sai::dma::ChannelA<stm32::SAI1>,
+    dma::PeripheralToMemory,
     &'static mut [u32; DMA_BUFFER_SIZE],
     dma::DBTransfer,
 >;
@@ -150,7 +150,6 @@ impl Audio {
 
         let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
 
-        // dma1 stream 0
         let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
         let dma_config = dma::dma::DmaConfig::default()
             .priority(dma::config::Priority::High)
@@ -158,28 +157,25 @@ impl Audio {
             .peripheral_increment(false)
             .circular_buffer(true)
             .fifo_enable(false);
-        let mut output_stream: dma::Transfer<_, _, dma::MemoryToPeripheral, _, _> =
-            dma::Transfer::init(
-                dma1_streams.0,
-                unsafe { pac::Peripherals::steal().SAI1 },
-                rx_buffer,
-                None,
-                dma_config,
-            );
+        let mut output_stream = dma::Transfer::init(
+            dma1_streams.0,
+            unsafe { pac::Peripherals::steal().SAI1.dma_ch_a() },
+            rx_buffer,
+            None,
+            dma_config,
+        );
 
-        // dma1 stream 1
         let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
         let dma_config = dma_config
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
-        let mut input_stream: dma::Transfer<_, _, dma::PeripheralToMemory, _, _> =
-            dma::Transfer::init(
-                dma1_streams.1,
-                unsafe { pac::Peripherals::steal().SAI1 },
-                tx_buffer,
-                None,
-                dma_config,
-            );
+        let mut input_stream = dma::Transfer::init(
+            dma1_streams.1,
+            unsafe { pac::Peripherals::steal().SAI1.dma_ch_b() },
+            tx_buffer,
+            None,
+            dma_config,
+        );
 
         info!("Setup up SAI...");
         let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
@@ -205,17 +201,6 @@ impl Audio {
             clocks,
             I2sUsers::new(master_config).add_slave(slave_config),
         );
-
-        // Manually configure Channel B as transmit stream
-        let dma1_reg = unsafe { pac::Peripherals::steal().DMA1 };
-        dma1_reg.st[0]
-            .cr
-            .modify(|_, w| w.dir().peripheral_to_memory());
-
-        // Manually configure Channel A as receive stream
-        dma1_reg.st[1]
-            .cr
-            .modify(|_, w| w.dir().memory_to_peripheral());
 
         info!("Setup up WM8731 Audio Codec...");
         let i2c2_pins = (
