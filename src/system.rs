@@ -75,7 +75,7 @@ impl System {
             .pll3_p_ck(PLL3_P_HZ) // used for SAI1
             .pll3_q_ck(PLL3_Q_HZ)
             .pll3_r_ck(PLL3_R_HZ)
-            .freeze(vos, &syscfg)
+            .freeze(vos, syscfg)
     }
 
     /// Setup cache
@@ -97,7 +97,7 @@ impl System {
     /// Batteries included initialization
     pub fn init(mut core: rtic::export::Peripherals, device: stm32::Peripherals) -> System {
         info!("Starting system init");
-        let mut ccdr = Self::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let ccdr = Self::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
 
         // log_clocks(&ccdr);
         let mut delay = Delay::new(core.SYST, ccdr.clocks);
@@ -117,7 +117,7 @@ impl System {
         let mut timer2 = device.TIM2.timer(
             MilliSeconds::from_ticks(100).into_rate(),
             ccdr.peripheral.TIM2,
-            &mut ccdr.clocks,
+            &ccdr.clocks,
         );
         timer2.listen(Event::TimeOut);
 

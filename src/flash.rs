@@ -77,7 +77,7 @@ impl Flash {
     fn write_complete(&mut self) -> FlashResult<bool> {
         match self.status() {
             Ok(status) => Ok(status & 0x01 == 0),
-            Err(e) => return Err(e),
+            Err(e) => Err(e),
         }
     }
 
@@ -134,12 +134,15 @@ impl Flash {
             .map(|_| status[0])
     }
 
+    /// # Safety
+    ///
     /// Reset the internal state, only if you know what you're doing
     pub unsafe fn reset(&mut self) {
         self.state = FlashState::Idle;
     }
 
     /// Initialize the flash quad spi interface
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         regs: stm32h7xx_hal::device::QUADSPI,
         prec: rcc::rec::Qspi,
@@ -160,7 +163,7 @@ impl Flash {
         let io3 = pf6.into_alternate().speed(Speed::VeryHigh);
 
         let config = Config::new(133.MHz()).mode(QspiMode::OneBit);
-        let qspi = regs.bank1((sck, io0, io1, io2, io3), config, &clocks, prec);
+        let qspi = regs.bank1((sck, io0, io1, io2, io3), config, clocks, prec);
 
         let mut flash = Flash {
             qspi,

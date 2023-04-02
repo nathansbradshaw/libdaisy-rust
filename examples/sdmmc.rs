@@ -49,7 +49,7 @@ mod app {
         logger::init();
 
         let device = ctx.device;
-        let mut ccdr = System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let ccdr = System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
 
         let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
         let gpiob = device.GPIOB.split(ccdr.peripheral.GPIOB);
@@ -102,11 +102,11 @@ mod app {
             gpio.daisy6.take().unwrap(),
             device.SDMMC1,
             ccdr.peripheral.SDMMC1,
-            &mut ccdr.clocks,
+            &ccdr.clocks,
         );
 
         gpio.led.set_low();
-        if let Ok(_) = <Sdmmc<SDMMC1, SdCard>>::init(&mut sd, 50.MHz()) {
+        if <Sdmmc<SDMMC1, SdCard>>::init(&mut sd, 50.MHz()).is_ok() {
             info!("Got SD Card!");
             let mut sd_fatfs = Controller::new(sd.sdmmc_block_device(), FakeTime);
             if let Ok(sd_fatfs_volume) = sd_fatfs.get_volume(VolumeIdx(0)) {

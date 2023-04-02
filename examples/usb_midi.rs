@@ -68,7 +68,7 @@ mod app {
         let mut timer2 = device.TIM2.timer(
             MilliSeconds::from_ticks(200).into_rate(),
             ccdr.peripheral.TIM2,
-            &mut ccdr.clocks,
+            &ccdr.clocks,
         );
         timer2.listen(Event::TimeOut);
 
@@ -203,17 +203,15 @@ mod app {
             let mut buffer = [0; 64];
             if let Ok(size) = midi.read(&mut buffer) {
                 let buffer_reader = MidiPacketBufferReader::new(&buffer, size);
-                for packet in buffer_reader.into_iter() {
-                    if let Ok(packet) = packet {
-                        match packet.message {
-                            Message::NoteOn(_, _, U7::MIN) | Message::NoteOff(..) => {
-                                led.set_low();
-                            }
-                            Message::NoteOn(..) => {
-                                led.set_high();
-                            }
-                            _ => {}
+                for packet in buffer_reader.into_iter().flatten() {
+                    match packet.message {
+                        Message::NoteOn(_, _, U7::MIN) | Message::NoteOff(..) => {
+                            led.set_low();
                         }
+                        Message::NoteOn(..) => {
+                            led.set_high();
+                        }
+                        _ => {}
                     }
                 }
             }

@@ -116,6 +116,7 @@ pub struct Audio {
 
 impl Audio {
     /// Setup audio handler
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         dma1_d: stm32::DMA1,
         dma1_p: rec::Dma1,
@@ -282,6 +283,7 @@ impl Audio {
 
     /// Push data to the DMA buffer for output
     /// Call this once per sample per call to [get_stereo()](Audio#get_stereo)
+    #[allow(clippy::result_unit_err)]
     pub fn push_stereo(&mut self, data: (f32, f32)) -> Result<(), ()> {
         self.output.push(data)
     }
