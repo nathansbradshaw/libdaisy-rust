@@ -12,7 +12,7 @@ use stm32h7xx_hal::{
     sai::*,
     stm32,
     stm32::rcc::d2ccip1r::SAI1SEL_A,
-    time,
+    time::Hertz,
     traits::i2s::FullDuplex,
 };
 
@@ -190,11 +190,11 @@ impl Audio {
             .set_frame_sync_active_high(false);
 
         let pins_a = (
-            sai_mclk_a.into_alternate_af6(),
-            sai_sck_a.into_alternate_af6(),
-            sai_fs_a.into_alternate_af6(),
-            sai_sd_a.into_alternate_af6(),
-            Some(sai_sd_b.into_alternate_af6()),
+            sai_mclk_a.into_alternate(),
+            sai_sck_a.into_alternate(),
+            sai_fs_a.into_alternate(),
+            sai_sd_a.into_alternate(),
+            Some(sai_sd_b.into_alternate()),
         );
 
         // Hand off to audio module
@@ -219,18 +219,21 @@ impl Audio {
             .modify(|_, w| w.dir().memory_to_peripheral());
 
         info!("Setup up WM8731 Audio Codec...");
-        let i2c2_pins = (i2c_scl.into_alternate_af4(), i2c_sda.into_alternate_af4());
+        let i2c2_pins = (
+            i2c_scl.into_alternate_open_drain(),
+            i2c_sda.into_alternate_open_drain(),
+        );
 
-        let mut i2c = i2c2_d.i2c(i2c2_pins, time::Hertz(100_000), i2c2_p, clocks);
+        let mut i2c = i2c2_d.i2c(i2c2_pins, Hertz::from_raw(100_000), i2c2_p, clocks);
 
         let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
 
         // Go through configuration setup
         for (register, value) in REGISTER_CONFIG {
             let register: u8 = (*register).into();
-            let value: u8 = (*value).into();
+            let value: u8 = *value;
             let byte1: u8 = ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
-            let byte2: u8 = value & 0b1111_1111;
+            let byte2: u8 = value;
             let bytes = [byte1, byte2];
 
             i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
@@ -439,37 +442,37 @@ impl Iterator for Mono<'_> {
 #[derive(Debug, Copy, Clone, IntoPrimitive)]
 #[repr(u8)]
 enum Register {
-    LINVOL = 0x00,
-    RINVOL = 0x01,
+    Linvol = 0x00,
+    Rinvol = 0x01,
     LOUT1V = 0x02,
     ROUT1V = 0x03,
-    APANA = 0x04,
-    APDIGI = 0x05, // 0000_0101
-    PWR = 0x06,
-    IFACE = 0x07,  // 0000_0111
-    SRATE = 0x08,  // 0000_1000
-    ACTIVE = 0x09, // 0000_1001
-    RESET = 0x0F,
+    Apana = 0x04,
+    Apdigi = 0x05, // 0000_0101
+    Pwr = 0x06,
+    Iface = 0x07,  // 0000_0111
+    Srate = 0x08,  // 0000_1000
+    Active = 0x09, // 0000_1001
+    Reset = 0x0F,
 }
 
 const REGISTER_CONFIG: &[(Register, u8)] = &[
     // reset Codec
-    (Register::RESET, 0x00),
+    (Register::Reset, 0x00),
     // set line inputs 0dB
-    (Register::LINVOL, 0x17),
-    (Register::RINVOL, 0x17),
+    (Register::Linvol, 0x17),
+    (Register::Rinvol, 0x17),
     // set headphone to mute
     (Register::LOUT1V, 0x00),
     (Register::ROUT1V, 0x00),
     // set analog and digital routing
-    (Register::APANA, 0x12),
-    (Register::APDIGI, 0x00),
+    (Register::Apana, 0x12),
+    (Register::Apdigi, 0x00),
     // configure power management
-    (Register::PWR, 0x42),
+    (Register::Pwr, 0x42),
     // configure digital format
-    (Register::IFACE, 0b1001),
+    (Register::Iface, 0b1001),
     // set samplerate
-    (Register::SRATE, 0x00),
-    (Register::ACTIVE, 0x00),
-    (Register::ACTIVE, 0x01),
+    (Register::Srate, 0x00),
+    (Register::Active, 0x00),
+    (Register::Active, 0x01),
 ];

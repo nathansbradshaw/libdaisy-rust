@@ -118,7 +118,8 @@ impl GPIO {
         daisy30: Option<gpio::gpiob::PB15<Analog>>,
     ) -> GPIO {
         let led = seed_led.into_push_pull_output();
-        let gpio = Self {
+
+        Self {
             led,
             daisy0,
             daisy1,
@@ -151,7 +152,6 @@ impl GPIO {
             daisy28,
             daisy29,
             daisy30,
-        };
-        gpio
+        }
     }
 }
