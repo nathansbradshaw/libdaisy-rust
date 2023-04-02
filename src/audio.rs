@@ -1,7 +1,5 @@
 //! Audio module. Handles audio startup and I/O.
 //! As well as converting between the S24 input and f32 for processing.
-use core::u8;
-
 use log::info;
 
 use stm32h7xx_hal::{
@@ -67,7 +65,7 @@ type DmaOutputStream = dma::Transfer<
 type StereoIteratorHandle = fn(StereoIterator, &mut Output);
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct S24(i32);
+struct S24(i32);
 
 impl From<i32> for S24 {
     fn from(x: i32) -> S24 {

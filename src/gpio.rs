@@ -3,9 +3,7 @@
 use stm32h7xx_hal::gpio;
 use stm32h7xx_hal::gpio::gpioc::PC7;
 
-// use stm32h7xx_hal::hal::digital::v2::InputPin;
-#[allow(unused_imports)]
-use stm32h7xx_hal::gpio::{Alternate, Analog, Input, Output, Pull, PushPull};
+use stm32h7xx_hal::gpio::{Alternate, Analog, Output, PushPull};
 
 pub use gpio::gpioa::PA0 as Daisy25;
 pub use gpio::gpioa::PA1 as Daisy24;
@@ -40,8 +38,6 @@ pub use gpio::gpiog::PG11 as Daisy8;
 pub use gpio::gpiog::PG9 as Daisy27;
 
 pub type SeedLed = PC7<Output<PushPull>>;
-
-//use crate::*;
 
 /// GPIO struct for holding Daisy GPIO pins
 #[allow(clippy::upper_case_acronyms)]
