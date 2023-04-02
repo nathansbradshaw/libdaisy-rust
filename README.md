@@ -46,7 +46,7 @@ cargo objcopy --example passthru --release -- -O binary passthru.bin
 
 # Minimum supported Rust version
 
-The Minimum Supported Rust Version (MSRV) at the moment is 1.51.0.
+The Minimum Supported Rust Version (MSRV) at the moment is 1.68.2.
 
 # Demos
 
