@@ -35,8 +35,8 @@ const PLL2_Q_HZ: Hertz = Hertz::from_raw(PLL2_P_HZ.raw() / 2); // No divder give
 const PLL2_R_HZ: Hertz = Hertz::from_raw(PLL2_P_HZ.raw() / 4); // No divder given, what's the default?
 
 const PLL3_P_HZ: Hertz = Hertz::from_raw(AUDIO_SAMPLE_HZ.raw() * 257);
-const PLL3_Q_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw() / 4);
-const PLL3_R_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw() / 16);
+const PLL3_Q_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw());
+const PLL3_R_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw());
 
 pub struct System {
     pub gpio: crate::gpio::GPIO,
