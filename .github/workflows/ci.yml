@@ -1,8 +1,8 @@
-name: Continuous integration
+name: CI
 
 on:
   push:
-    branches: [ staging, trying, master ]
+    branches: [master]
   pull_request:
 
 env:
@@ -11,10 +11,10 @@ env:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    strategy: 
-      matrix:                   # All permutations of {rust, mcu}
+    strategy:
+      matrix: # All permutations of {rust, mcu}
         rust:
-          - 1.60.0  # MSRV
+          - 1.68.2 # MSRV
           - stable
         logger:
           - log-rtt
@@ -22,15 +22,15 @@ jobs:
           - log-semihosting
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: actions-rs/toolchain@v1
-      with:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
           profile: minimal
           toolchain: ${{ matrix.rust }}
           target: thumbv7em-none-eabihf
           override: true
-    - uses: actions-rs/cargo@v1
-      with:
+      - uses: actions-rs/cargo@v1
+        with:
           use-cross: true
           command: build
           args: --verbose --release --examples --target thumbv7em-none-eabihf --features ${{ matrix.logger }}
