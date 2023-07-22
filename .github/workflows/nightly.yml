@@ -1,6 +1,6 @@
 on:
   push:
-    branches: [ master ]        # Do not run on staging / trying
+    branches: [main] # Do not run on staging / trying
   pull_request:
 
 name: Nightly rust
