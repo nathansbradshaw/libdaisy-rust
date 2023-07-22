@@ -1,6 +1,6 @@
 [package]
 authors = ["Matthew Meyer <mtthw.meyer@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Hardware Abstraction Layer implementation for Daisy boards"
 keywords = ["cortex-m", "stm32h7xx", "stm32h750", "hal", "daisy"]
 readme = "README.md"
