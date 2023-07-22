@@ -24,7 +24,7 @@ pub fn disable(mpu: &mut cortex_m::peripheral::MPU, scb: &mut cortex_m::peripher
         /* Make sure outstanding transfers are done */
         cortex_m::asm::dmb();
         scb.shcsr.modify(|r| r & !MEMFAULTENA);
-        /* Disable the MPU and clear the control register*/
+        /* Disable the MPU and clear the control register */
         mpu.ctrl.write(0);
     }
 }
@@ -48,7 +48,7 @@ pub fn enable(mpu: &mut cortex_m::peripheral::MPU, scb: &mut cortex_m::periphera
 fn log2minus1(sz: u32) -> u32 {
     for x in 5..=31 {
         if sz == (1 << x) {
-            return x - 1;
+            return x - 1
         }
     }
     panic!("Unknown memory region size!");

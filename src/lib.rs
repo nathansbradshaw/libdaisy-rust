@@ -5,7 +5,6 @@
 // extern crate cortex_m;
 
 use cortex_m::asm::delay as delay_cycles;
-
 use stm32h7xx_hal::time::Hertz;
 
 pub const MILLI: u32 = 1_000;

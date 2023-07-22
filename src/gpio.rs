@@ -1,41 +1,25 @@
 //! GPIO module. Contains pins by Daisy names.
 //! Provides access to the Seed LED and codec reset.
-use stm32h7xx_hal::gpio;
-use stm32h7xx_hal::gpio::gpioc::PC7;
-
-use stm32h7xx_hal::gpio::{Alternate, Analog, Output, PushPull};
-
-pub use gpio::gpioa::PA0 as Daisy25;
-pub use gpio::gpioa::PA1 as Daisy24;
-pub use gpio::gpioa::PA2 as Daisy28;
-pub use gpio::gpioa::PA3 as Daisy16;
-pub use gpio::gpioa::PA4 as Daisy23;
-pub use gpio::gpioa::PA5 as Daisy22;
-pub use gpio::gpioa::PA6 as Daisy19;
-pub use gpio::gpioa::PA7 as Daisy18;
-pub use gpio::gpiob::PB1 as Daisy17;
-pub use gpio::gpiob::PB12 as Daisy0;
-pub use gpio::gpiob::PB14 as Daisy29;
-pub use gpio::gpiob::PB15 as Daisy30;
-pub use gpio::gpiob::PB4 as Daisy9;
-pub use gpio::gpiob::PB5 as Daisy10;
-pub use gpio::gpiob::PB6 as Daisy13;
-pub use gpio::gpiob::PB7 as Daisy14;
-pub use gpio::gpiob::PB8 as Daisy11;
-pub use gpio::gpiob::PB9 as Daisy12;
-pub use gpio::gpioc::PC0 as Daisy15;
-pub use gpio::gpioc::PC1 as Daisy20;
-pub use gpio::gpioc::PC10 as Daisy2;
-pub use gpio::gpioc::PC11 as Daisy1;
-pub use gpio::gpioc::PC12 as Daisy6;
-pub use gpio::gpioc::PC4 as Daisy21;
-pub use gpio::gpioc::PC8 as Daisy4;
-pub use gpio::gpioc::PC9 as Daisy3;
-pub use gpio::gpiod::PD11 as Daisy26;
-pub use gpio::gpiod::PD2 as Daisy5;
-pub use gpio::gpiog::PG10 as Daisy7;
-pub use gpio::gpiog::PG11 as Daisy8;
-pub use gpio::gpiog::PG9 as Daisy27;
+pub use gpio::{
+    gpioa::{
+        PA0 as Daisy25, PA1 as Daisy24, PA2 as Daisy28, PA3 as Daisy16, PA4 as Daisy23,
+        PA5 as Daisy22, PA6 as Daisy19, PA7 as Daisy18,
+    },
+    gpiob::{
+        PB1 as Daisy17, PB12 as Daisy0, PB14 as Daisy29, PB15 as Daisy30, PB4 as Daisy9,
+        PB5 as Daisy10, PB6 as Daisy13, PB7 as Daisy14, PB8 as Daisy11, PB9 as Daisy12,
+    },
+    gpioc::{
+        PC0 as Daisy15, PC1 as Daisy20, PC10 as Daisy2, PC11 as Daisy1, PC12 as Daisy6,
+        PC4 as Daisy21, PC8 as Daisy4, PC9 as Daisy3,
+    },
+    gpiod::{PD11 as Daisy26, PD2 as Daisy5},
+    gpiog::{PG10 as Daisy7, PG11 as Daisy8, PG9 as Daisy27},
+};
+use stm32h7xx_hal::{
+    gpio,
+    gpio::{gpioc::PC7, Alternate, Analog, Output, PushPull},
+};
 
 pub type SeedLed = PC7<Output<PushPull>>;
 

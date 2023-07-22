@@ -11,6 +11,7 @@
 )]
 mod app {
     use libdaisy::{gpio, prelude::*, system::System};
+    use num_enum::TryFromPrimitive;
     use stm32h7xx_hal::{
         rcc::rec::UsbClkSel,
         stm32,
@@ -18,8 +19,6 @@ mod app {
         timer::{Event, Timer},
         usb_hs::{UsbBus, USB2},
     };
-
-    use num_enum::TryFromPrimitive;
     use usb_device::prelude::*;
     use usbd_midi::{
         data::{
@@ -196,7 +195,7 @@ mod app {
             let led = &mut local.seed_led;
 
             if !usb_dev.poll(&mut [midi]) {
-                return;
+                return
             }
 
             let mut buffer = [0; 64];

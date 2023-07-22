@@ -6,11 +6,8 @@
     peripherals = true,
 )]
 mod app {
+    use libdaisy::{audio, logger, system};
     use log::info;
-
-    use libdaisy::audio;
-    use libdaisy::logger;
-    use libdaisy::system;
 
     #[shared]
     struct Shared {}

@@ -2,8 +2,8 @@
 #![no_main]
 #![no_std]
 
-//this example simply runs some tests on the flash.. reading and writing, and if all passes,
-//flashes the LED at the end
+//this example simply runs some tests on the flash.. reading and writing, and
+// if all passes, flashes the LED at the end
 
 #[rtic::app(
     device = stm32h7xx_hal::stm32,

@@ -1,10 +1,9 @@
 //! Interface abstractions for switches, potentiometers, etc.
+use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
+use micromath::F32Ext;
 #[allow(unused_imports)]
 use stm32h7xx_hal::gpio::{Analog, Input, Output, PushPull};
 use stm32h7xx_hal::hal::digital::v2::{InputPin, OutputPin};
-
-use debouncr::{debounce_4, Debouncer, Edge, Repeat4};
-use micromath::F32Ext;
 
 /// Define the types for a transformation function for AnalogControl
 pub type TransformFn = fn(f32) -> f32;
@@ -72,7 +71,8 @@ where
         self.double_threshold = double_threshold;
     }
 
-    /// Read the state of the switch and update status. This should be called on a timer.
+    /// Read the state of the switch and update status. This should be called on
+    /// a timer.
     pub fn update(&mut self) {
         let is_pressed = self.is_pressed();
 
@@ -151,7 +151,7 @@ where
     /// If the switch is being held
     pub fn is_held(&self) -> bool {
         if let Some(held_threshold) = self.held_threshold {
-            return self.falling && self.held_counter >= held_threshold;
+            return self.falling && self.held_counter >= held_threshold
         }
         false
     }
@@ -197,9 +197,9 @@ impl<T> AnalogControl<T> {
     ///
     /// ```rust
     /// // Transform linear input into logarithmic
-    ///let mut control1 = hid::AnalogControl::new(daisy15, adc1_max);
-    ///control1.set_transform(|x| x * x);
-    ///```
+    /// let mut control1 = hid::AnalogControl::new(daisy15, adc1_max);
+    /// control1.set_transform(|x| x * x);
+    /// ```
     pub fn set_transform(&mut self, transform: TransformFn) {
         self.transform = Some(transform);
     }
@@ -219,7 +219,8 @@ impl<T> AnalogControl<T> {
         self.index = (self.index + 1) % ANALOG_ARR_SIZE;
     }
 
-    /// Get the value of the control with any applied scaling and/or transformation.
+    /// Get the value of the control with any applied scaling and/or
+    /// transformation.
     pub fn get_value(&self) -> f32 {
         let mut value = self.state.iter().sum();
         value /= ANALOG_ARR_SIZE_F32;
@@ -235,7 +236,8 @@ impl<T> AnalogControl<T> {
     }
 }
 
-/// Basic LED implementation with a PWM like functional. Does not implement PWM via hardware.
+/// Basic LED implementation with a PWM like functional. Does not implement PWM
+/// via hardware.
 pub struct Led<T> {
     pin: T,
     /// inverts the brightness level

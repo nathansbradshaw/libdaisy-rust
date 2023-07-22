@@ -6,18 +6,11 @@
     peripherals = true,
 )]
 mod app {
-    use log::info;
     // Includes a panic handler and optional logging facilities
     use libdaisy::logger;
-
-    use stm32h7xx_hal::stm32;
-    use stm32h7xx_hal::timer::Timer;
-
-    use libdaisy::gpio::*;
-    use libdaisy::hid;
-    use libdaisy::prelude::*;
-    use libdaisy::system;
-    use stm32h7xx_hal::time::Hertz;
+    use libdaisy::{gpio::*, hid, prelude::*, system};
+    use log::info;
+    use stm32h7xx_hal::{stm32, time::Hertz, timer::Timer};
 
     #[shared]
     struct Shared {}

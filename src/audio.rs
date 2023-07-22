@@ -1,7 +1,7 @@
 //! Audio module. Handles audio startup and I/O.
 //! As well as converting between the S24 input and f32 for processing.
+use cortex_m::{asm, prelude::_embedded_hal_blocking_i2c_Write};
 use log::info;
-
 use stm32h7xx_hal::{
     dma,
     gpio::{gpiob, gpioe, gpioh, Analog},
@@ -15,9 +15,6 @@ use stm32h7xx_hal::{
     time::Hertz,
     traits::i2s::FullDuplex,
 };
-
-use cortex_m::asm;
-use cortex_m::prelude::_embedded_hal_blocking_i2c_Write;
 
 // Process samples at 1000 Hz
 // With a circular buffer(*2) in stereo (*2)
@@ -309,7 +306,7 @@ impl Audio {
         if self.read() {
             return Some(StereoIterator::new(
                 &self.input.buffer[self.input.index..MAX_TRANSFER_SIZE],
-            ));
+            ))
         }
         None
     }
@@ -363,7 +360,7 @@ impl Output {
             self.buffer[self.index] = S24::from(data.0).into();
             self.buffer[self.index + 1] = S24::from(data.1).into();
             self.index += 2;
-            return Ok(());
+            return Ok(())
         }
         Err(())
     }
@@ -420,7 +417,8 @@ impl Iterator for Mono<'_> {
     }
 }
 
-// - WM8731 codec register addresses -------------------------------------------------
+// - WM8731 codec register addresses
+//   -------------------------------------------------
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Copy, Clone)]

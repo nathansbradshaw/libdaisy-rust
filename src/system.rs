@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 
 use log::info;
-
 use stm32h7xx_hal::{
     adc,
     delay::Delay,
@@ -10,12 +9,10 @@ use stm32h7xx_hal::{
     rcc, stm32,
     stm32::TIM2,
     time::{Hertz, MegaHertz, MilliSeconds},
-    timer::Event,
-    timer::Timer,
+    timer::{Event, Timer},
 };
 
-use crate::audio::Audio;
-use crate::*;
+use crate::{audio::Audio, *};
 
 const HSE_CLOCK_MHZ: MegaHertz = MegaHertz::from_raw(16);
 const HCLK_MHZ: MegaHertz = MegaHertz::from_raw(200);

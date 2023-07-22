@@ -7,8 +7,6 @@
     peripherals = true,
 )]
 mod app {
-    use log::info;
-
     use embedded_sdmmc::{Controller, TimeSource, Timestamp, VolumeIdx};
     use libdaisy::{
         gpio,
@@ -18,6 +16,7 @@ mod app {
         sdmmc,
         system::System,
     };
+    use log::info;
     use stm32h7xx_hal::{
         sdmmc::{SdCard, Sdmmc},
         stm32::SDMMC1,

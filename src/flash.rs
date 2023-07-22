@@ -1,7 +1,6 @@
 //! IS25LP064A: 64Mbit/8Mbyte flash memory
 //!
 //! https://www.issi.com/WW/pdf/25LP032-64A-B.pdf
-//!
 
 use stm32h7xx_hal::{
     gpio::{gpiof, gpiog, Analog, Speed},
@@ -43,8 +42,8 @@ pub struct Flash {
 /*
  *
  * 6.1 STATUS REGISTER
- * Status Register Format and Status Register Bit Definitionsare described in Table 6.1 & Table 6.2.
- * 0: WIP write in progress(0 == read, 1 == busy)
+ * Status Register Format and Status Register Bit Definitionsare described in
+ * Table 6.1 & Table 6.2. 0: WIP write in progress(0 == read, 1 == busy)
  * 1: WEL write enable (1 == enabled)
  * 2-5: BP block protection (0 indicates not protected [default])
  * 6: Quad enable, quad output function enable, (1 = enable)
@@ -67,7 +66,7 @@ pub struct Flash {
  *  * sets WEL
  * 8.16 READ STATUS REGISTER OPERATION (RDSR, 05h)
  *  * instruction, 1 byte read
-*/
+ */
 
 impl Flash {
     fn wait(&mut self) {
@@ -84,7 +83,7 @@ impl Flash {
     fn wait_write(&mut self) -> FlashResult<()> {
         loop {
             if self.write_complete()? {
-                return Ok(());
+                return Ok(())
             }
         }
     }
@@ -181,8 +180,8 @@ impl Flash {
         flash.wait_write().unwrap();
         flash.assert_info();
 
-        //setup read parameters, no wrap, default strength, default burst, 8 dummy cycles
-        //pg 19
+        //setup read parameters, no wrap, default strength, default burst, 8 dummy
+        // cycles pg 19
         flash.enable_write().unwrap();
         flash.write_reg(0xC0, 0b1111_1000).unwrap();
         flash.wait_write().unwrap();
@@ -194,9 +193,10 @@ impl Flash {
     ///
     /// Remarks:
     /// - Erasing sets all the bits in the given area to `1`.
-    /// - The memory array of the IS25LP064A/032A is organized into uniform 4 Kbyte sectors or
-    /// 32/64 Kbyte uniform blocks (a block consists of eight/sixteen adjacent sectors
-    /// respectively).
+    /// - The memory array of the IS25LP064A/032A is organized into uniform 4
+    ///   Kbyte sectors or
+    /// 32/64 Kbyte uniform blocks (a block consists of eight/sixteen adjacent
+    /// sectors respectively).
     pub fn erase(&mut self, op: FlashErase) -> NBFlashResult<()> {
         match self.state {
             FlashState::Erasing(e) => {
@@ -262,11 +262,13 @@ impl Flash {
     /// Program `data` into the flash starting at the given `address`
     ///
     /// Remarks:
-    /// - This operation can only set 1s to 0s, you must use `erase` to set a 0 to a 1.
-    /// - The starting byte can be anywhere within the page (256 byte chunk). When the end of the
-    /// page is reached, the address will wrap around to the beginning of the same page. If the
-    /// data to be programmed are less than a full page, the data of all other bytes on the same
-    /// page will remain unchanged.
+    /// - This operation can only set 1s to 0s, you must use `erase` to set a 0
+    ///   to a 1.
+    /// - The starting byte can be anywhere within the page (256 byte chunk).
+    ///   When the end of the
+    /// page is reached, the address will wrap around to the beginning of the
+    /// same page. If the data to be programmed are less than a full page,
+    /// the data of all other bytes on the same page will remain unchanged.
     pub fn program(&mut self, address: u32, data: &[u8]) -> NBFlashResult<()> {
         let prog = |flash: &mut Self, chunk_index: u32| -> NBFlashResult<()> {
             if let Some(chunk) = data.chunks(32).nth(chunk_index as usize) {

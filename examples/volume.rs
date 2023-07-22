@@ -10,19 +10,9 @@
 mod app {
     //use rtic::cyccnt::U32Ext;
 
+    use libdaisy::{audio, gpio::*, hid, logger, prelude::*, system, MILICYCLES};
     use log::info;
-
-    use stm32h7xx_hal::adc;
-    use stm32h7xx_hal::stm32;
-    use stm32h7xx_hal::timer::Timer;
-
-    use libdaisy::audio;
-    use libdaisy::gpio::*;
-    use libdaisy::hid;
-    use libdaisy::logger;
-    use libdaisy::prelude::*;
-    use libdaisy::system;
-    use libdaisy::MILICYCLES;
+    use stm32h7xx_hal::{adc, stm32, timer::Timer};
 
     #[shared]
     struct Shared {
