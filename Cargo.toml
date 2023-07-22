@@ -12,30 +12,30 @@ documentation = "https://docs.rs/libdaisy"
 exclude = [".gitignore"]
 
 [dependencies]
-cfg-if = "0.1.10"
-cortex-m-rtic = "1.0.0"
-cortex-m = "^0.7"
+cfg-if = "1"
+cortex-m = "0.7"
+cortex-m-log = { version = "0.8", features = ["itm", "semihosting", "log-integration"], optional = true  }
+cortex-m-rtic = "1"
+cortex-m-semihosting = { version = "0.5", optional = true  }
 debouncr = "0.2.2"
-log = "0.4.11"
-micromath = "1.1.1"
-panic-halt = "0.2.0"
-stm32h7xx-hal = { version = "0.14.0", features = ["stm32h750v","rt","fmc", "xspi", "sdmmc", "sdmmc-fatfs", "usb_hs"] }
-stm32-fmc = "0.3.0"
-rtt-target = { version = "0.4.0", optional = true }
-panic-rtt-target = { version = "0.1.2", features = ["cortex-m"], optional = true }
 lazy_static = { version = "1.4.0", features = ["spin_no_std"], optional = true  }
-cortex-m-log = { version = "~0.7", features = ["itm", "semihosting", "log-integration"], optional = true  }
-panic-itm = { version = "~0.4.2", optional = true  }
-panic-semihosting = { version = "0.5.6", optional = true  }
-cortex-m-semihosting = { version = "0.3.7", optional = true  }
+log = "0.4"
+micromath = "2"
+panic-halt = "0.2.0"
+panic-itm = { version = "0.4", optional = true  }
+panic-rtt-target = { version = "0.1.2", features = ["cortex-m"], optional = true }
+panic-semihosting = { version = "0.6", optional = true  }
+rtt-target = { version = "0.4.0", optional = true }
+stm32-fmc = "0.3.0"
+stm32h7xx-hal = { version = "0.14.0", features = ["stm32h750v","rt","fmc", "xspi", "sdmmc", "sdmmc-fatfs", "usb_hs"] }
 
 [features]
 default = []
 
-log-rtt = ["rtt-target", "panic-rtt-target"]
 log-itm = ["panic-itm", "lazy_static", "cortex-m-log"]
-log-semihosting = ["panic-semihosting", "lazy_static", "cortex-m-log", "cortex-m-semihosting"]
 log-none = []
+log-rtt = ["rtt-target", "panic-rtt-target"]
+log-semihosting = ["panic-semihosting", "lazy_static", "cortex-m-log", "cortex-m-semihosting"]
 
 # this lets you use `cargo fix`!
 #[[bin]]
@@ -56,8 +56,8 @@ lto = true # better optimizations
 opt-level = "s" # optimize for binary size
 
 [dev_dependencies]
-embedded-sdmmc = "0.4.0"
-libm = "0.2.5"
+embedded-sdmmc = "0.4"
+libm = "0.2"
+num_enum = { version = "0.5", default-features = false }
+usb-device = "0.2"
 usbd-midi = { git = "https://github.com/btrepp/usbd-midi/" }
-num_enum = { version = "0.5.1", default-features = false }
-usb-device = "0.2.8"
