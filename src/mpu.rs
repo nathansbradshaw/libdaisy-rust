@@ -19,6 +19,7 @@ const MEMFAULTENA: u32 = 1 << 16;
 const REGION_FULL_ACCESS: u32 = 0x03;
 const REGION_ENABLE: u32 = 0x01;
 
+#[allow(clippy::needless_pass_by_ref_mut)] // mpu and scb are modified at the register level
 pub fn disable(mpu: &mut cortex_m::peripheral::MPU, scb: &mut cortex_m::peripheral::SCB) {
     unsafe {
         /* Make sure outstanding transfers are done */
@@ -29,6 +30,7 @@ pub fn disable(mpu: &mut cortex_m::peripheral::MPU, scb: &mut cortex_m::peripher
     }
 }
 
+#[allow(clippy::needless_pass_by_ref_mut)] // mpu and scb are modified at the register level
 pub fn enable(mpu: &mut cortex_m::peripheral::MPU, scb: &mut cortex_m::peripheral::SCB) {
     const MPU_ENABLE: u32 = 0x01;
     const MPU_DEFAULT_MMAP_FOR_PRIVILEGED: u32 = 0x04;
