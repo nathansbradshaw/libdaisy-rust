@@ -57,7 +57,7 @@ fn log2minus1(sz: u32) -> u32 {
 }
 
 /// Setup MPU for dma
-pub fn dma_init(
+pub fn init_dma(
     mpu: &mut cortex_m::peripheral::MPU,
     scb: &mut cortex_m::peripheral::SCB,
     location: *mut u32,

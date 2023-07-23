@@ -143,7 +143,7 @@ impl Audio {
         scb: &mut cortex_m::peripheral::SCB,
     ) -> Self {
         info!("Setup up DMA...");
-        crate::mpu::dma_init(mpu, scb, START_OF_DRAM2 as *mut u32, DMA_MEM_SIZE);
+        crate::mpu::init_dma(mpu, scb, START_OF_DRAM2 as *mut u32, DMA_MEM_SIZE);
 
         let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
 
