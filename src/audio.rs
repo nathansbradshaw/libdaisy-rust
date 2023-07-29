@@ -23,9 +23,6 @@ pub const DMA_BUFFER_SIZE: usize = BLOCK_SIZE_MAX * 2 * 2;
 
 pub type DmaBuffer = [u32; DMA_BUFFER_SIZE];
 
-const START_OF_DRAM2: u32 = 0x30000000;
-const DMA_MEM_SIZE: usize = 32 * 1024;
-
 #[link_section = ".sram1_bss"]
 #[no_mangle]
 static mut TX_BUFFER: DmaBuffer = [0; DMA_BUFFER_SIZE];
@@ -142,9 +139,6 @@ impl Audio {
         mpu: &mut cortex_m::peripheral::MPU,
         scb: &mut cortex_m::peripheral::SCB,
     ) -> Self {
-        info!("Setup up DMA...");
-        crate::mpu::init_dma(mpu, scb, START_OF_DRAM2 as *mut u32, DMA_MEM_SIZE);
-
         let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
         let dma_config = dma::dma::DmaConfig::default()
             .priority(dma::config::Priority::High)
@@ -236,12 +230,21 @@ impl Audio {
             sai.enable();
             sai.try_send(0, 0).unwrap();
         });
+
         let input = Input::new(unsafe { &mut RX_BUFFER });
         let output = Output::new(unsafe { &mut TX_BUFFER });
+
+        let input_buffer_ptr: *mut u32 = unsafe { &mut RX_BUFFER[0] };
+        let output_buffer_ptr: *mut u32 = unsafe { &mut TX_BUFFER[0] };
+
         info!(
-            "{:?}, {:?}",
-            &input.buffer[0] as *const u32, &output.buffer[0] as *const u32
+            "Setup up Audio DMA: input: {:?}, output: {:?}",
+            input_buffer_ptr, output_buffer_ptr
         );
+
+        crate::mpu::init_dma(mpu, scb, input_buffer_ptr, DMA_BUFFER_SIZE);
+        crate::mpu::init_dma(mpu, scb, output_buffer_ptr, DMA_BUFFER_SIZE);
+
         Audio {
             sai,
             input_stream,
