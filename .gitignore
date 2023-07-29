@@ -6,6 +6,7 @@ Cargo.lock
 .gdb_history
 Embed.toml
 /logs
+notes.md
 # editor files
 .vscode/*
 !.vscode/*.md
