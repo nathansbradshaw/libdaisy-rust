@@ -5,6 +5,7 @@ use log::info;
 use stm32h7xx_hal::{
     adc,
     delay::Delay,
+    dma,
     prelude::*,
     rcc, stm32,
     stm32::TIM2,
@@ -202,10 +203,12 @@ impl System {
         )
         .into();
 
+        let dma1_streams = dma::dma::StreamsTuple::new(device.DMA1, ccdr.peripheral.DMA1);
+
         info!("Setup up Audio...");
         let audio = Audio::new(
-            device.DMA1,
-            ccdr.peripheral.DMA1,
+            dma1_streams.0,
+            dma1_streams.1,
             device.SAI1,
             ccdr.peripheral.SAI1,
             device.I2C2,

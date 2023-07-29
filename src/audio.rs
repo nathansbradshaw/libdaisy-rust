@@ -120,8 +120,8 @@ impl Audio {
     /// Setup audio handler
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        dma1_d: stm32::DMA1,
-        dma1_p: rec::Dma1,
+        dma1_stream0: dma::dma::StreamX<stm32::DMA1, 0>,
+        dma1_stream1: dma::dma::StreamX<stm32::DMA1, 1>,
         sai1_d: stm32::SAI1,
         sai1_p: rec::Sai1,
         i2c2_d: stm32::I2C2,
@@ -145,8 +145,6 @@ impl Audio {
         info!("Setup up DMA...");
         crate::mpu::init_dma(mpu, scb, START_OF_DRAM2 as *mut u32, DMA_MEM_SIZE);
 
-        let dma1_streams = dma::dma::StreamsTuple::new(dma1_d, dma1_p);
-
         let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
         let dma_config = dma::dma::DmaConfig::default()
             .priority(dma::config::Priority::High)
@@ -155,7 +153,7 @@ impl Audio {
             .circular_buffer(true)
             .fifo_enable(false);
         let mut output_stream = dma::Transfer::init(
-            dma1_streams.0,
+            dma1_stream0,
             unsafe { pac::Peripherals::steal().SAI1.dma_ch_a() },
             rx_buffer,
             None,
@@ -167,7 +165,7 @@ impl Audio {
             .transfer_complete_interrupt(true)
             .half_transfer_interrupt(true);
         let mut input_stream = dma::Transfer::init(
-            dma1_streams.1,
+            dma1_stream1,
             unsafe { pac::Peripherals::steal().SAI1.dma_ch_b() },
             tx_buffer,
             None,
