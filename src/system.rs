@@ -15,6 +15,9 @@ use stm32h7xx_hal::{
 
 use crate::{audio::Audio, *};
 
+const START_OF_DRAM2: u32 = 0x30000000;
+const DMA_MEM_SIZE: usize = 32 * 1024;
+
 const HSE_CLOCK_MHZ: MegaHertz = MegaHertz::from_raw(16);
 const HCLK_MHZ: MegaHertz = MegaHertz::from_raw(200);
 const HCLK2_MHZ: MegaHertz = MegaHertz::from_raw(200);
@@ -95,6 +98,14 @@ impl System {
     pub fn init(mut core: rtic::export::Peripherals, device: stm32::Peripherals) -> System {
         info!("Starting system init");
         let ccdr = Self::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+
+        info!("Setup up DMA RAM in DRAM2...");
+        crate::mpu::init_dma(
+            &mut core.MPU,
+            &mut core.SCB,
+            START_OF_DRAM2 as *mut u32,
+            DMA_MEM_SIZE,
+        );
 
         // log_clocks(&ccdr);
         let mut delay = Delay::new(core.SYST, ccdr.clocks);
@@ -221,8 +232,6 @@ impl System {
             gpioh.ph4,
             gpiob.pb11,
             &ccdr.clocks,
-            &mut core.MPU,
-            &mut core.SCB,
         );
 
         // Setup GPIOs

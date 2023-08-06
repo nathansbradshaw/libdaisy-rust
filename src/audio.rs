@@ -136,8 +136,6 @@ impl Audio {
         i2c_sda: gpiob::PB11<Analog>,
 
         clocks: &rcc::CoreClocks,
-        mpu: &mut cortex_m::peripheral::MPU,
-        scb: &mut cortex_m::peripheral::SCB,
     ) -> Self {
         let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
         let dma_config = dma::dma::DmaConfig::default()
@@ -234,16 +232,10 @@ impl Audio {
         let input = Input::new(unsafe { &mut RX_BUFFER });
         let output = Output::new(unsafe { &mut TX_BUFFER });
 
-        let input_buffer_ptr: *mut u32 = unsafe { &mut RX_BUFFER[0] };
-        let output_buffer_ptr: *mut u32 = unsafe { &mut TX_BUFFER[0] };
-
         info!(
             "Setup up Audio DMA: input: {:?}, output: {:?}",
-            input_buffer_ptr, output_buffer_ptr
+            &input.buffer[0] as *const u32, &output.buffer[0] as *const u32
         );
-
-        crate::mpu::init_dma(mpu, scb, input_buffer_ptr, DMA_BUFFER_SIZE);
-        crate::mpu::init_dma(mpu, scb, output_buffer_ptr, DMA_BUFFER_SIZE);
 
         Audio {
             sai,
