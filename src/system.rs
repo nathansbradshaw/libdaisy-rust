@@ -1,6 +1,7 @@
 //! Contains setup for Daisy board hardware.
 #![allow(dead_code)]
 
+use hal::rcc::CoreClocks;
 use log::info;
 use stm32h7xx_hal::{
     adc,
@@ -8,9 +9,7 @@ use stm32h7xx_hal::{
     dma,
     prelude::*,
     rcc, stm32,
-    stm32::TIM2,
-    time::{Hertz, MegaHertz, MilliSeconds},
-    timer::{Event, Timer},
+    time::{Hertz, MegaHertz},
 };
 
 use crate::{audio::Audio, *};
@@ -41,16 +40,144 @@ const PLL3_R_HZ: Hertz = Hertz::from_raw(PLL3_P_HZ.raw());
 pub struct System {
     pub gpio: crate::gpio::GPIO,
     pub audio: audio::Audio,
-    pub exti: stm32::EXTI,
-    pub syscfg: stm32::SYSCFG,
     pub adc1: adc::Adc<stm32::ADC1, adc::Disabled>,
     pub adc2: adc::Adc<stm32::ADC2, adc::Disabled>,
-    pub timer2: Timer<TIM2>,
     pub sdram: &'static mut [f32],
     pub flash: crate::flash::Flash,
+    pub delay: Delay,
+}
+
+/// All peripherals and other resources required for the system
+pub struct SystemResources<'a> {
+    pub clocks: &'a CoreClocks,
+    pub adc1: stm32::ADC1,
+    pub adc2: stm32::ADC2,
+    pub adc12_rec: rcc::rec::Adc12,
+    pub syst: stm32::SYST,
+    pub mpu: &'a mut stm32::MPU,
+    pub scb: &'a mut stm32::SCB,
+    pub dcb: &'a mut stm32::DCB,
+    pub dwt: &'a mut stm32::DWT,
+    pub fmc: stm32::FMC,
+    pub fmc_rec: rcc::rec::Fmc,
+    pub i2c2: stm32::I2C2,
+    pub i2c2_rec: rcc::rec::I2c2,
+    pub cpuid: &'a mut cortex_m::peripheral::CPUID,
+    pub qspi: stm32::QUADSPI,
+    pub qspi_rec: rcc::rec::Qspi,
+
+    pub sai1: stm32::SAI1,
+    pub sai1_rec: rcc::rec::Sai1,
+
+    pub gpioa: stm32::GPIOA,
+    pub gpioa_rec: rcc::rec::Gpioa,
+
+    pub gpiob: stm32::GPIOB,
+    pub gpiob_rec: rcc::rec::Gpiob,
+
+    pub gpioc: stm32::GPIOC,
+    pub gpioc_rec: rcc::rec::Gpioc,
+
+    pub gpiod: stm32::GPIOD,
+    pub gpiod_rec: rcc::rec::Gpiod,
+
+    pub gpioe: stm32::GPIOE,
+    pub gpioe_rec: rcc::rec::Gpioe,
+
+    pub gpiof: stm32::GPIOF,
+    pub gpiof_rec: rcc::rec::Gpiof,
+
+    pub gpiog: stm32::GPIOG,
+    pub gpiog_rec: rcc::rec::Gpiog,
+
+    pub gpioh: stm32::GPIOH,
+    pub gpioh_rec: rcc::rec::Gpioh,
+
+    pub gpioi: stm32::GPIOI,
+    pub gpioi_rec: rcc::rec::Gpioi,
+
+    pub dma1: stm32::DMA1,
+    pub dma1_rec: rcc::rec::Dma1,
+}
+
+#[macro_export]
+macro_rules! system_init {
+    ($core:ident, $device:ident, $ccdr:ident) => {{
+        // let ccdr = libdaisy::system::System::init_clocks($device.PWR, $device.RCC, &$device.SYSCFG);
+
+        let resources = libdaisy::system::SystemResources {
+            clocks: &$ccdr.clocks,
+            adc1: $device.ADC1,
+            adc2: $device.ADC2,
+            adc12_rec: $ccdr.peripheral.ADC12,
+            syst: $core.SYST,
+            mpu: &mut $core.MPU,
+            scb: &mut $core.SCB,
+            dcb: &mut $core.DCB,
+            dwt: &mut $core.DWT,
+            fmc: $device.FMC,
+            fmc_rec: $ccdr.peripheral.FMC,
+            i2c2: $device.I2C2,
+            i2c2_rec: $ccdr.peripheral.I2C2,
+            cpuid: &mut $core.CPUID,
+            qspi: $device.QUADSPI,
+            qspi_rec: $ccdr.peripheral.QSPI,
+            sai1: $device.SAI1,
+            sai1_rec: $ccdr.peripheral.SAI1,
+            gpioa: $device.GPIOA,
+            gpioa_rec: $ccdr.peripheral.GPIOA,
+            gpiob: $device.GPIOB,
+            gpiob_rec: $ccdr.peripheral.GPIOB,
+            gpioc: $device.GPIOC,
+            gpioc_rec: $ccdr.peripheral.GPIOC,
+            gpiod: $device.GPIOD,
+            gpiod_rec: $ccdr.peripheral.GPIOD,
+            gpioe: $device.GPIOE,
+            gpioe_rec: $ccdr.peripheral.GPIOE,
+            gpiof: $device.GPIOF,
+            gpiof_rec: $ccdr.peripheral.GPIOF,
+            gpiog: $device.GPIOG,
+            gpiog_rec: $ccdr.peripheral.GPIOG,
+            gpioh: $device.GPIOH,
+            gpioh_rec: $ccdr.peripheral.GPIOH,
+            gpioi: $device.GPIOI,
+            gpioi_rec: $ccdr.peripheral.GPIOI,
+            dma1: $device.DMA1,
+            dma1_rec: $ccdr.peripheral.DMA1,
+        };
+
+        libdaisy::system::System::init(resources)
+    }};
+}
+
+#[derive(Clone, Copy)]
+pub enum Version {
+    Seed,
+    Seed1_1,
+    Seed2DFM,
 }
 
 impl System {
+    fn detect_version(
+        s2dfm_pin: hal::gpio::gpiod::PD4<hal::gpio::Analog>,
+        seed1_1_pin: hal::gpio::gpiod::PD3<hal::gpio::Analog>,
+    ) -> Version {
+        let s2dfm_pin = s2dfm_pin.into_pull_up_input();
+        let seed1_1_pin = seed1_1_pin.into_pull_up_input();
+
+        let state = (seed1_1_pin.is_low(), s2dfm_pin.is_low());
+
+        // Deinitialize the pins after reading
+        s2dfm_pin.into_analog();
+        seed1_1_pin.into_analog();
+
+        match state {
+            (true, _) => Version::Seed1_1,
+            (false, true) => Version::Seed2DFM,
+            _ => Version::Seed,
+        }
+    }
+
     /// Initialize clocks
     pub fn init_clocks(pwr: stm32::PWR, rcc: stm32::RCC, syscfg: &stm32::SYSCFG) -> rcc::Ccdr {
         // Power
@@ -95,65 +222,50 @@ impl System {
     }
 
     /// Batteries included initialization
-    pub fn init(mut core: rtic::export::Peripherals, device: stm32::Peripherals) -> System {
+    pub fn init(resources: SystemResources) -> System {
         info!("Starting system init");
-        let ccdr = Self::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
-
         info!("Setup up DMA RAM in DRAM2...");
         crate::mpu::init_dma(
-            &mut core.MPU,
-            &mut core.SCB,
+            resources.mpu,
+            resources.scb,
             START_OF_DRAM2 as *mut u32,
             DMA_MEM_SIZE,
         );
 
-        // log_clocks(&ccdr);
-        let mut delay = Delay::new(core.SYST, ccdr.clocks);
+        let mut delay = Delay::new(resources.syst, *resources.clocks);
+
         // Setup ADCs
         let (adc1, adc2) = adc::adc12(
-            device.ADC1,
-            device.ADC2,
+            resources.adc1,
+            resources.adc2,
             4.MHz(),
             &mut delay,
-            ccdr.peripheral.ADC12,
-            &ccdr.clocks,
+            resources.adc12_rec,
+            resources.clocks,
         );
 
-        Self::init_debug(&mut core.DCB, &mut core.DWT);
-
-        // Timers
-        let mut timer2 = device.TIM2.timer(
-            MilliSeconds::from_ticks(100).into_rate(),
-            ccdr.peripheral.TIM2,
-            &ccdr.clocks,
-        );
-        timer2.listen(Event::TimeOut);
-
-        // let mut timer3 = device
-        //     .TIM3
-        //     .timer(1.ms(), ccdr.peripheral.TIM3, &mut ccdr.clocks);
-        // timer3.listen(Event::TimeOut);
+        Self::init_debug(resources.dcb, resources.dwt);
 
         info!("Setting up GPIOs...");
-        let gpioa = device.GPIOA.split(ccdr.peripheral.GPIOA);
-        let gpiob = device.GPIOB.split(ccdr.peripheral.GPIOB);
-        let gpioc = device.GPIOC.split(ccdr.peripheral.GPIOC);
-        let gpiod = device.GPIOD.split(ccdr.peripheral.GPIOD);
-        let gpioe = device.GPIOE.split(ccdr.peripheral.GPIOE);
-        let gpiof = device.GPIOF.split(ccdr.peripheral.GPIOF);
-        let gpiog = device.GPIOG.split(ccdr.peripheral.GPIOG);
-        let gpioh = device.GPIOH.split(ccdr.peripheral.GPIOH);
-        let gpioi = device.GPIOI.split(ccdr.peripheral.GPIOI);
+        let gpioa = resources.gpioa.split(resources.gpioa_rec);
+        let gpiob = resources.gpiob.split(resources.gpiob_rec);
+        let gpioc = resources.gpioc.split(resources.gpioc_rec);
+        let gpiod = resources.gpiod.split(resources.gpiod_rec);
+        let gpioe = resources.gpioe.split(resources.gpioe_rec);
+        let gpiof = resources.gpiof.split(resources.gpiof_rec);
+        let gpiog = resources.gpiog.split(resources.gpiog_rec);
+        let gpioh = resources.gpioh.split(resources.gpioh_rec);
+        let gpioi = resources.gpioi.split(resources.gpioi_rec);
 
         // Configure SDRAM
         info!("Setting up SDRAM...");
         let sdram = crate::sdram::Sdram::new(
-            device.FMC,
-            ccdr.peripheral.FMC,
-            &ccdr.clocks,
+            resources.fmc,
+            resources.fmc_rec,
+            resources.clocks,
             &mut delay,
-            &mut core.SCB,
-            &mut core.MPU,
+            resources.scb,
+            resources.mpu,
             gpiod.pd0,
             gpiod.pd1,
             gpiod.pd8,
@@ -214,16 +326,18 @@ impl System {
         )
         .into();
 
-        let dma1_streams = dma::dma::StreamsTuple::new(device.DMA1, ccdr.peripheral.DMA1);
+        let dma1_streams = dma::dma::StreamsTuple::new(resources.dma1, resources.dma1_rec);
 
         info!("Setup up Audio...");
+        let version = Self::detect_version(gpiod.pd4, gpiod.pd3);
+
         let audio = Audio::new(
             dma1_streams.0,
             dma1_streams.1,
-            device.SAI1,
-            ccdr.peripheral.SAI1,
-            device.I2C2,
-            ccdr.peripheral.I2C2,
+            resources.sai1,
+            resources.sai1_rec,
+            resources.i2c2,
+            resources.i2c2_rec,
             gpioe.pe2,
             gpioe.pe3,
             gpioe.pe4,
@@ -231,8 +345,15 @@ impl System {
             gpioe.pe6,
             gpioh.ph4,
             gpiob.pb11,
-            &ccdr.clocks,
+            resources.clocks,
+            version,
+            &mut delay,
         );
+
+        let (d31, d32) = match version {
+            Version::Seed2DFM => (Some(gpioc.pc2), Some(gpioc.pc3)),
+            _ => (None, None),
+        };
 
         // Setup GPIOs
         let gpio = crate::gpio::GPIO::init(
@@ -268,18 +389,20 @@ impl System {
             Some(gpioa.pa2),
             Some(gpiob.pb14),
             Some(gpiob.pb15),
+            d31,
+            d32,
         );
 
         // Setup cache
-        Self::init_cache(&mut core.SCB, &mut core.CPUID);
+        Self::init_cache(resources.scb, resources.cpuid);
 
         info!("System init done!");
 
         //setup flash
         let flash = crate::flash::Flash::new(
-            device.QUADSPI,
-            ccdr.peripheral.QSPI,
-            &ccdr.clocks,
+            resources.qspi,
+            resources.qspi_rec,
+            resources.clocks,
             gpiof.pf6,
             gpiof.pf7,
             gpiof.pf8,
@@ -291,13 +414,11 @@ impl System {
         System {
             gpio,
             audio,
-            exti: device.EXTI,
-            syscfg: device.SYSCFG,
             adc1,
             adc2,
-            timer2,
             sdram,
             flash,
+            delay,
         }
     }
 }

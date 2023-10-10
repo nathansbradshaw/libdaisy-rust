@@ -11,7 +11,7 @@ pub use gpio::{
     },
     gpioc::{
         PC0 as Daisy15, PC1 as Daisy20, PC10 as Daisy2, PC11 as Daisy1, PC12 as Daisy6,
-        PC4 as Daisy21, PC8 as Daisy4, PC9 as Daisy3,
+        PC2 as Daisy31, PC3 as Daisy32, PC4 as Daisy21, PC8 as Daisy4, PC9 as Daisy3,
     },
     gpiod::{PD11 as Daisy26, PD2 as Daisy5},
     gpiog::{PG10 as Daisy7, PG11 as Daisy8, PG9 as Daisy27},
@@ -58,6 +58,8 @@ pub struct GPIO {
     pub daisy28: Option<gpio::gpioa::PA2<Analog>>,
     pub daisy29: Option<gpio::gpiob::PB14<Analog>>,
     pub daisy30: Option<gpio::gpiob::PB15<Analog>>,
+    pub daisy31: Option<gpio::gpioc::PC2<Analog>>,
+    pub daisy32: Option<gpio::gpioc::PC3<Analog>>,
 }
 
 impl GPIO {
@@ -96,6 +98,8 @@ impl GPIO {
         daisy28: Option<gpio::gpioa::PA2<Analog>>,
         daisy29: Option<gpio::gpiob::PB14<Analog>>,
         daisy30: Option<gpio::gpiob::PB15<Analog>>,
+        daisy31: Option<gpio::gpioc::PC2<Analog>>,
+        daisy32: Option<gpio::gpioc::PC3<Analog>>,
     ) -> GPIO {
         let led = seed_led.into_push_pull_output();
 
@@ -132,6 +136,8 @@ impl GPIO {
             daisy28,
             daisy29,
             daisy30,
+            daisy31,
+            daisy32,
         }
     }
 }
