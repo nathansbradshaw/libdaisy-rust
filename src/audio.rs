@@ -1,6 +1,6 @@
 //! Audio module. Handles audio startup and I/O.
 //! As well as converting between the S24 input and f32 for processing.
-use cortex_m::{asm, prelude::_embedded_hal_blocking_i2c_Write};
+use cortex_m::prelude::_embedded_hal_blocking_i2c_Write;
 use log::info;
 use stm32h7xx_hal::{
     dma,
