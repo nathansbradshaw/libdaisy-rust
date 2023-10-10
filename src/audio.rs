@@ -5,6 +5,7 @@ use log::info;
 use stm32h7xx_hal::{
     dma,
     gpio::{gpiob, gpioe, gpioh, Analog},
+    hal::blocking::delay::DelayMs,
     i2c::*,
     pac, rcc,
     rcc::rec,
@@ -55,6 +56,33 @@ type DmaOutputStream = dma::Transfer<
     &'static mut [u32; DMA_BUFFER_SIZE],
     dma::DBTransfer,
 >;
+
+type DmaInputStreamS2dfm = dma::Transfer<
+    dma::dma::Stream1<stm32::DMA1>,
+    sai::dma::ChannelA<stm32::SAI1>,
+    dma::MemoryToPeripheral,
+    &'static mut [u32; DMA_BUFFER_SIZE],
+    dma::DBTransfer,
+>;
+
+type DmaOutputStreamS2dfm = dma::Transfer<
+    dma::dma::Stream0<stm32::DMA1>,
+    sai::dma::ChannelB<stm32::SAI1>,
+    dma::PeripheralToMemory,
+    &'static mut [u32; DMA_BUFFER_SIZE],
+    dma::DBTransfer,
+>;
+
+pub enum AudioStream {
+    Normal {
+        input: DmaInputStream,
+        output: DmaOutputStream,
+    },
+    S2dfm {
+        input: DmaInputStreamS2dfm,
+        output: DmaOutputStreamS2dfm,
+    },
+}
 
 type StereoIteratorHandle = fn(StereoIterator, &mut Output);
 
@@ -109,8 +137,7 @@ pub struct Audio {
     sai: sai::Sai<stm32::SAI1, sai::I2S>,
     input: Input,
     output: Output,
-    input_stream: DmaInputStream,
-    output_stream: DmaOutputStream,
+    audio_stream: AudioStream,
 }
 
 impl Audio {
@@ -136,131 +163,267 @@ impl Audio {
         i2c_sda: gpiob::PB11<Analog>,
 
         clocks: &rcc::CoreClocks,
+        board_version: crate::system::Version,
+        delay: &mut impl DelayMs<u8>,
     ) -> Self {
-        let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
-        let dma_config = dma::dma::DmaConfig::default()
-            .priority(dma::config::Priority::High)
-            .memory_increment(true)
-            .peripheral_increment(false)
-            .circular_buffer(true)
-            .fifo_enable(false);
-        let mut output_stream = dma::Transfer::init(
-            dma1_stream0,
-            unsafe { pac::Peripherals::steal().SAI1.dma_ch_a() },
-            rx_buffer,
-            None,
-            dma_config,
-        );
+        match board_version {
+            crate::system::Version::Seed | crate::system::Version::Seed1_1 => {
+                let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+                let dma_config = dma::dma::DmaConfig::default()
+                    .priority(dma::config::Priority::High)
+                    .memory_increment(true)
+                    .peripheral_increment(false)
+                    .circular_buffer(true)
+                    .fifo_enable(false);
+                let mut output_stream = dma::Transfer::init(
+                    dma1_stream0,
+                    unsafe { pac::Peripherals::steal().SAI1.dma_ch_a() },
+                    rx_buffer,
+                    None,
+                    dma_config,
+                );
 
-        let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
-        let dma_config = dma_config
-            .transfer_complete_interrupt(true)
-            .half_transfer_interrupt(true);
-        let mut input_stream = dma::Transfer::init(
-            dma1_stream1,
-            unsafe { pac::Peripherals::steal().SAI1.dma_ch_b() },
-            tx_buffer,
-            None,
-            dma_config,
-        );
+                let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+                let dma_config = dma_config
+                    .transfer_complete_interrupt(true)
+                    .half_transfer_interrupt(true);
+                let mut input_stream = dma::Transfer::init(
+                    dma1_stream1,
+                    unsafe { pac::Peripherals::steal().SAI1.dma_ch_b() },
+                    tx_buffer,
+                    None,
+                    dma_config,
+                );
 
-        info!("Setup up SAI...");
-        let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
-        let master_config = I2SChanConfig::new(I2SDir::Rx).set_frame_sync_active_high(false);
-        let slave_config = I2SChanConfig::new(I2SDir::Tx)
-            .set_sync_type(I2SSync::Internal)
-            .set_frame_sync_active_high(false);
+                info!("Set up SAI...");
+                let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
+                let master_config =
+                    I2SChanConfig::new(I2SDir::Rx).set_frame_sync_active_high(false);
+                let slave_config = I2SChanConfig::new(I2SDir::Tx)
+                    .set_sync_type(I2SSync::Internal)
+                    .set_frame_sync_active_high(false);
 
-        let pins_a = (
-            sai_mclk_a.into_alternate(),
-            sai_sck_a.into_alternate(),
-            sai_fs_a.into_alternate(),
-            sai_sd_a.into_alternate(),
-            Some(sai_sd_b.into_alternate()),
-        );
+                let pins_a = (
+                    sai_mclk_a.into_alternate(),
+                    sai_sck_a.into_alternate(),
+                    sai_fs_a.into_alternate(),
+                    sai_sd_a.into_alternate(),
+                    Some(sai_sd_b.into_alternate()),
+                );
 
-        // Hand off to audio module
-        let mut sai = sai1_d.i2s_ch_a(
-            pins_a,
-            crate::AUDIO_SAMPLE_HZ,
-            I2SDataSize::BITS_24,
-            sai1_rec,
-            clocks,
-            I2sUsers::new(master_config).add_slave(slave_config),
-        );
+                // Hand off to audio module
+                let mut sai = sai1_d.i2s_ch_a(
+                    pins_a,
+                    crate::AUDIO_SAMPLE_HZ,
+                    I2SDataSize::BITS_24,
+                    sai1_rec,
+                    clocks,
+                    I2sUsers::new(master_config).add_slave(slave_config),
+                );
 
-        info!("Setup up WM8731 Audio Codec...");
-        let i2c2_pins = (
-            i2c_scl.into_alternate_open_drain(),
-            i2c_sda.into_alternate_open_drain(),
-        );
+                // Besides this CODEC startup, the code for the Seed and
+                // Seed 1.1 is the same.
+                match board_version {
+                    crate::system::Version::Seed => {
+                        info!("Setting up WM8731 Audio Codec...");
+                        let i2c2_pins = (
+                            i2c_scl.into_alternate_open_drain(),
+                            i2c_sda.into_alternate_open_drain(),
+                        );
 
-        let mut i2c = i2c2_d.i2c(i2c2_pins, Hertz::from_raw(100_000), i2c2_p, clocks);
+                        let mut i2c =
+                            i2c2_d.i2c(i2c2_pins, Hertz::from_raw(100_000), i2c2_p, clocks);
 
-        let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
+                        let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
 
-        // Go through configuration setup
-        for (register, value) in REGISTER_CONFIG {
-            let register: u8 = (*register).into();
-            let value: u8 = *value;
-            let byte1: u8 = ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
-            let byte2: u8 = value;
-            let bytes = [byte1, byte2];
+                        // Go through configuration setup
+                        for (register, value) in REGISTER_CONFIG {
+                            let register: u8 = (*register).into();
+                            let value: u8 = *value;
+                            let byte1: u8 =
+                                ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
+                            let byte2: u8 = value;
+                            let bytes = [byte1, byte2];
 
-            i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
+                            i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
 
-            // wait ~10us
-            asm::delay(5_000);
-        }
+                            delay.delay_ms(1);
+                        }
+                    }
+                    crate::system::Version::Seed1_1 => {
+                        info!("Setting up AK4556 Audio Codec...");
+                        let mut ak_reset = i2c_sda
+                            .into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::High);
+                        delay.delay_ms(1);
+                        ak_reset.set_low();
+                        delay.delay_ms(1);
+                        ak_reset.set_high();
+                    }
+                    crate::system::Version::Seed2DFM => unreachable!(),
+                }
 
-        info!("Start audio stream...");
-        input_stream.start(|_sai1_rb| {
-            sai.enable_dma(SaiChannel::ChannelA);
-        });
+                info!("Start audio stream...");
+                input_stream.start(|_sai1_rb| {
+                    sai.enable_dma(SaiChannel::ChannelA);
+                });
 
-        output_stream.start(|sai1_rb| {
-            sai.enable_dma(SaiChannel::ChannelB);
+                output_stream.start(|sai1_rb| {
+                    sai.enable_dma(SaiChannel::ChannelB);
 
-            // wait until sai1's fifo starts to receive data
-            info!("Sai1 fifo waiting to receive data.");
-            while sai1_rb.chb().sr.read().flvl().is_empty() {}
-            info!("Audio started!");
-            sai.enable();
-            sai.try_send(0, 0).unwrap();
-        });
+                    // wait until sai1's fifo starts to receive data
+                    info!("Sai1 fifo waiting to receive data.");
+                    while sai1_rb.chb().sr.read().flvl().is_empty() {}
+                    info!("Audio started!");
+                    sai.enable();
+                    sai.try_send(0, 0).unwrap();
+                });
 
-        let input = Input::new(unsafe { &mut RX_BUFFER });
-        let output = Output::new(unsafe { &mut TX_BUFFER });
+                let input = Input::new(unsafe { &mut RX_BUFFER });
+                let output = Output::new(unsafe { &mut TX_BUFFER });
 
-        info!(
-            "Setup up Audio DMA: input: {:?}, output: {:?}",
-            &input.buffer[0] as *const u32, &output.buffer[0] as *const u32
-        );
+                info!(
+                    "Setup up Audio DMA: input: {:?}, output: {:?}",
+                    &input.buffer[0] as *const u32, &output.buffer[0] as *const u32
+                );
 
-        Audio {
-            sai,
-            input_stream,
-            output_stream,
-            input,
-            output,
+                Audio {
+                    sai,
+                    audio_stream: AudioStream::Normal {
+                        input: input_stream,
+                        output: output_stream,
+                    },
+                    input,
+                    output,
+                }
+            }
+            crate::system::Version::Seed2DFM => {
+                let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+                let dma_config = dma::dma::DmaConfig::default()
+                    .priority(dma::config::Priority::High)
+                    .memory_increment(true)
+                    .peripheral_increment(false)
+                    .circular_buffer(true)
+                    .fifo_enable(false);
+                let mut output_stream = dma::Transfer::init(
+                    dma1_stream0,
+                    unsafe { pac::Peripherals::steal().SAI1.dma_ch_b() },
+                    rx_buffer,
+                    None,
+                    dma_config,
+                );
+
+                let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+                let dma_config = dma_config
+                    .transfer_complete_interrupt(true)
+                    .half_transfer_interrupt(true);
+                let mut input_stream = dma::Transfer::init(
+                    dma1_stream1,
+                    unsafe { pac::Peripherals::steal().SAI1.dma_ch_a() },
+                    tx_buffer,
+                    None,
+                    dma_config,
+                );
+
+                info!("Setup up SAI...");
+                let sai1_rec = sai1_p.kernel_clk_mux(SAI1SEL_A::Pll3P);
+                let master_config =
+                    I2SChanConfig::new(I2SDir::Tx).set_frame_sync_active_high(false);
+                let slave_config = I2SChanConfig::new(I2SDir::Rx)
+                    .set_sync_type(I2SSync::Internal)
+                    .set_frame_sync_active_high(false);
+
+                let pins_a = (
+                    sai_mclk_a.into_alternate(),
+                    sai_sck_a.into_alternate(),
+                    sai_fs_a.into_alternate(),
+                    sai_sd_a.into_alternate(),
+                    Some(sai_sd_b.into_alternate()),
+                );
+
+                // Hand off to audio module
+                let mut sai = sai1_d.i2s_ch_a(
+                    pins_a,
+                    crate::AUDIO_SAMPLE_HZ,
+                    I2SDataSize::BITS_24,
+                    sai1_rec,
+                    clocks,
+                    I2sUsers::new(master_config).add_slave(slave_config),
+                );
+
+                info!("Setting up PCM3060 Audio Codec...");
+                i2c_sda.into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::Low);
+
+                info!("Start audio stream...");
+                input_stream.start(|_sai1_rb| {
+                    sai.enable_dma(SaiChannel::ChannelB);
+                });
+
+                output_stream.start(|sai1_rb| {
+                    sai.enable_dma(SaiChannel::ChannelA);
+
+                    // wait until sai1's fifo starts to receive data
+                    info!("Sai1 fifo waiting to receive data.");
+                    while sai1_rb.cha().sr.read().flvl().is_empty() {}
+                    info!("Audio started!");
+                    sai.enable();
+                    sai.try_send(0, 0).unwrap();
+                });
+
+                let input = Input::new(unsafe { &mut RX_BUFFER });
+                let output = Output::new(unsafe { &mut TX_BUFFER });
+
+                info!(
+                    "Setup up Audio DMA: input: {:?}, output: {:?}",
+                    &input.buffer[0] as *const u32, &output.buffer[0] as *const u32
+                );
+
+                Audio {
+                    sai,
+                    audio_stream: AudioStream::S2dfm {
+                        input: input_stream,
+                        output: output_stream,
+                    },
+                    input,
+                    output,
+                }
+            }
         }
     }
 
     /// Check interrupts and set indexes for I/O
     fn read(&mut self) -> bool {
         // Check interrupt(s)
-        if self.input_stream.get_half_transfer_flag() {
-            self.input_stream.clear_half_transfer_interrupt();
-            self.input.set_index(0);
-            self.output.set_index(0);
-            true
-        } else if self.input_stream.get_transfer_complete_flag() {
-            self.input_stream.clear_transfer_complete_interrupt();
-            self.input.set_index(MAX_TRANSFER_SIZE);
-            self.output.set_index(MAX_TRANSFER_SIZE);
-            true
-        } else {
-            false
+        match &mut self.audio_stream {
+            AudioStream::Normal { input, .. } => {
+                if input.get_half_transfer_flag() {
+                    input.clear_half_transfer_interrupt();
+                    self.input.set_index(0);
+                    self.output.set_index(0);
+                    true
+                } else if input.get_transfer_complete_flag() {
+                    input.clear_transfer_complete_interrupt();
+                    self.input.set_index(MAX_TRANSFER_SIZE);
+                    self.output.set_index(MAX_TRANSFER_SIZE);
+                    true
+                } else {
+                    false
+                }
+            }
+            AudioStream::S2dfm { input, .. } => {
+                if input.get_half_transfer_flag() {
+                    input.clear_half_transfer_interrupt();
+                    self.input.set_index(0);
+                    self.output.set_index(0);
+                    true
+                } else if input.get_transfer_complete_flag() {
+                    input.clear_transfer_complete_interrupt();
+                    self.input.set_index(MAX_TRANSFER_SIZE);
+                    self.output.set_index(MAX_TRANSFER_SIZE);
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
@@ -299,7 +462,7 @@ impl Audio {
         if self.read() {
             return Some(StereoIterator::new(
                 &self.input.buffer[self.input.index..MAX_TRANSFER_SIZE],
-            ))
+            ));
         }
         None
     }
@@ -353,7 +516,7 @@ impl Output {
             self.buffer[self.index] = S24::from(data.0).into();
             self.buffer[self.index + 1] = S24::from(data.1).into();
             self.index += 2;
-            return Ok(())
+            return Ok(());
         }
         Err(())
     }
