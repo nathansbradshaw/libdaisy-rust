@@ -8,8 +8,7 @@
 )]
 mod app {
     // Includes a panic handler and optional logging facilities
-    use libdaisy::logger;
-    use libdaisy::{gpio, system};
+    use libdaisy::{gpio, logger, system};
     use log::info;
     use stm32h7xx_hal::{stm32, time::MilliSeconds, timer::Timer};
 
@@ -25,18 +24,26 @@ mod app {
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
-        let mut system = system::System::init(ctx.core, ctx.device);
+        let mut core = ctx.core;
+        let device = ctx.device;
+        let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let system = libdaisy::system_init!(core, device, ccdr);
         info!("Startup done!");
+        let mut timer2 = stm32h7xx_hal::timer::TimerExt::timer(
+            device.TIM2,
+            MilliSeconds::from_ticks(100).into_rate(),
+            ccdr.peripheral.TIM2,
+            &ccdr.clocks,
+        );
+        timer2.listen(stm32h7xx_hal::timer::Event::TimeOut);
 
-        system
-            .timer2
-            .set_freq(MilliSeconds::from_ticks(500).into_rate());
+        timer2.set_freq(MilliSeconds::from_ticks(500).into_rate());
 
         (
             Shared {},
             Local {
                 seed_led: system.gpio.led,
-                timer2: system.timer2,
+                timer2,
             },
             init::Monotonics(),
         )
