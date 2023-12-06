@@ -358,6 +358,7 @@ impl System {
         // Setup GPIOs
         let gpio = crate::gpio::GPIO::init(
             gpioc.pc7,
+            gpiog.pg3,
             Some(gpiob.pb12),
             Some(gpioc.pc11),
             Some(gpioc.pc10),

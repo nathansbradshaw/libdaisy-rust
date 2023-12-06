@@ -18,15 +18,17 @@ pub use gpio::{
 };
 use stm32h7xx_hal::{
     gpio,
-    gpio::{gpioc::PC7, Alternate, Analog, Output, PushPull},
+    gpio::{gpioc::PC7, gpiog::PG3, Alternate, Analog, Input, Output, PushPull},
 };
 
 pub type SeedLed = PC7<Output<PushPull>>;
+pub type SeedButton = PG3<Input>;
 
 /// GPIO struct for holding Daisy GPIO pins
 #[allow(clippy::upper_case_acronyms)]
 pub struct GPIO {
     pub led: SeedLed,
+    pub button: SeedButton,
     pub daisy0: Option<gpio::gpiob::PB12<Analog>>,
     pub daisy1: Option<gpio::gpioc::PC11<Analog>>,
     pub daisy2: Option<gpio::gpioc::PC10<Analog>>,
@@ -67,6 +69,7 @@ impl GPIO {
     #[allow(clippy::too_many_arguments)]
     pub fn init(
         seed_led: gpio::gpioc::PC7<Analog>,
+        seed_button: gpio::gpiog::PG3<Analog>,
         daisy0: Option<gpio::gpiob::PB12<Analog>>,
         daisy1: Option<gpio::gpioc::PC11<Analog>>,
         daisy2: Option<gpio::gpioc::PC10<Analog>>,
@@ -102,9 +105,11 @@ impl GPIO {
         daisy32: Option<gpio::gpioc::PC3<Analog>>,
     ) -> GPIO {
         let led = seed_led.into_push_pull_output();
+        let button = seed_button.into_floating_input();
 
         Self {
             led,
+            button,
             daisy0,
             daisy1,
             daisy2,
