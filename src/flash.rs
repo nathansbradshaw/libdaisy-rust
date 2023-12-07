@@ -83,7 +83,7 @@ impl Flash {
     fn wait_write(&mut self) -> FlashResult<()> {
         loop {
             if self.write_complete()? {
-                return Ok(())
+                return Ok(());
             }
         }
     }

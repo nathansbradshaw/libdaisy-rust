@@ -151,7 +151,7 @@ where
     /// If the switch is being held
     pub fn is_held(&self) -> bool {
         if let Some(held_threshold) = self.held_threshold {
-            return self.falling && self.held_counter >= held_threshold
+            return self.falling && self.held_counter >= held_threshold;
         }
         false
     }

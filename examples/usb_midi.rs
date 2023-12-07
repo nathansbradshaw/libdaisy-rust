@@ -195,7 +195,7 @@ mod app {
             let led = &mut local.seed_led;
 
             if !usb_dev.poll(&mut [midi]) {
-                return
+                return;
             }
 
             let mut buffer = [0; 64];
