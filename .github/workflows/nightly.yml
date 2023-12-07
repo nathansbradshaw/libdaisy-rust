@@ -20,4 +20,4 @@ jobs:
         with:
           use-cross: true
           command: build
-          args: --verbose --release --examples --target thumbv7em-none-eabihf
+          args: --verbose --release --target thumbv7em-none-eabihf
