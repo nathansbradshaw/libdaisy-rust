@@ -55,6 +55,14 @@ impl<const SIZE: usize> AudioBuffer<SIZE> {
     pub fn as_mut_slice(&mut self) -> &mut [(f32, f32)] {
         &mut self.data
     }
+
+    pub fn iter(&self) -> core::slice::Iter<'_, (f32, f32)> {
+        self.data.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, (f32, f32)> {
+        self.data.iter_mut()
+    }
 }
 
 type DmaInputStream = dma::Transfer<

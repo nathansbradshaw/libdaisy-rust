@@ -6,8 +6,9 @@
     peripherals = true,
 )]
 mod app {
+    use libdaisy::audio::AudioBuffer;
     use libdaisy::logger;
-    use libdaisy::{gpio, system, audio};
+    use libdaisy::{ system, audio};
     use log::info;
 
     #[shared]
@@ -16,7 +17,7 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer,
+        buffer: audio::AudioBuffer<{audio::BLOCK_SIZE_MAX}>,
     }
 
     #[init]
@@ -32,7 +33,7 @@ mod app {
         let system = libdaisy::system_init!(core, device, ccdr);
 
 
-        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
+        let buffer: AudioBuffer<{audio::BLOCK_SIZE_MAX}> = AudioBuffer::new();
 
         info!("Startup done!!");
 
@@ -63,8 +64,8 @@ mod app {
 
         if audio.get_stereo(buffer) {
             
-            for (left, right) in buffer {
-                audio.push_stereo((*left, *right));
+            for (left, right) in buffer.iter() {
+               let _ = audio.push_stereo((*left, *right));
             }
         } else {
             info!("Error reading data!");

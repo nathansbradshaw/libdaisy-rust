@@ -1,0 +1,48 @@
+name: Build Rust Examples
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        override: true
+    
+    - name: Install target
+      run: rustup target add thumbv7em-none-eabihf
+
+    - name: Cache cargo registry
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    - name: Build examples
+      run: |
+        excluded_examples="delay flash hid_blinky knob sdmmc sdram sine switch toggle usb_midi volume"  # List of examples to exclude
+        for example in $(ls examples/*.rs); do
+          example_name=$(basename $example .rs)
+          if [[ ! " $excluded_examples " =~ " $example_name " ]]; then
+            cargo build --example $example_name
+          else
+            echo "Skipping $example_name"
+          fi
+        done
