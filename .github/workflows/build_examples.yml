@@ -37,7 +37,7 @@ jobs:
 
     - name: Build examples
       run: |
-        excluded_examples="sdmmc sdram switch toggle usb_midi volume"  # List of examples to exclude
+        excluded_examples="sdmmc usb_midi"  # List of examples to exclude
         for example in $(ls examples/*.rs); do
           example_name=$(basename $example .rs)
           if [[ ! " $excluded_examples " =~ " $example_name " ]]; then
