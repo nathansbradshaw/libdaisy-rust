@@ -13,7 +13,7 @@ mod app {
 
     pub struct AudioRate {
         pub audio: audio::Audio,
-        buffer: audio::AudioBuffer<{audio::BLOCK_SIZE_MAX}>,
+        buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }>,
     }
 
     #[shared]
@@ -35,7 +35,7 @@ mod app {
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let system = libdaisy::system_init!(core, device, ccdr);
         info!("Startup done!");
-        let buffer: audio::AudioBuffer<{audio::BLOCK_SIZE_MAX}> = audio::AudioBuffer::new();
+        let buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }> = audio::AudioBuffer::new();
 
         (
             Shared {},

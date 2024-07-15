@@ -22,7 +22,7 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer<{audio::BLOCK_SIZE_MAX}>,
+        buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }>,
         adc1: adc::Adc<stm32::ADC1, adc::Enabled>,
         timer2: Timer<stm32::TIM2>,
     }
@@ -34,7 +34,7 @@ mod app {
         let device = ctx.device;
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let mut system = libdaisy::system_init!(core, device, ccdr);
-        let buffer: audio::AudioBuffer<{audio::BLOCK_SIZE_MAX}> = audio::AudioBuffer::new();
+        let buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }> = audio::AudioBuffer::new();
 
         info!("Enable adc1");
         let mut adc1 = system.adc1.enable();

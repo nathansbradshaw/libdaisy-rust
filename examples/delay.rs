@@ -16,7 +16,7 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer<{audio::BLOCK_SIZE_MAX}>,
+        buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }>,
         sdram: &'static mut [f32],
     }
 
@@ -28,7 +28,7 @@ mod app {
         let device = ctx.device;
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let system = libdaisy::system_init!(core, device, ccdr);
-        let buffer: audio::AudioBuffer<{audio::BLOCK_SIZE_MAX}> = audio::AudioBuffer::new();
+        let buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }> = audio::AudioBuffer::new();
 
         info!("Startup done!");
 

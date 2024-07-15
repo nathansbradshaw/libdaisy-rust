@@ -45,9 +45,7 @@ mod app {
             .expect("Failed to get pin daisy28!")
             .into_pull_up_input();
 
-        
-        timer2
-            .set_freq(MilliSeconds::from_ticks(1).into_rate());
+        timer2.set_freq(MilliSeconds::from_ticks(1).into_rate());
 
         // Switch rate is determined by timer freq
         let mut switch1 = hid::Switch::new(daisy28, hid::SwitchType::PullUp);

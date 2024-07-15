@@ -39,9 +39,14 @@ const S24_SIGN: i32 = 0x800000;
 /// Largest number of audio blocks for a single DMA operation
 pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
-
 pub struct AudioBuffer<const SIZE: usize> {
     data: [(f32, f32); SIZE],
+}
+
+impl Default for AudioBuffer<BLOCK_SIZE_MAX> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<const SIZE: usize> AudioBuffer<SIZE> {
@@ -50,7 +55,6 @@ impl<const SIZE: usize> AudioBuffer<SIZE> {
             data: [(0.0, 0.0); SIZE],
         }
     }
-
 
     pub fn as_mut_slice(&mut self) -> &mut [(f32, f32)] {
         &mut self.data
