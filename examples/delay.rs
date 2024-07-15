@@ -16,15 +16,19 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer,
+        buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }>,
         sdram: &'static mut [f32],
     }
 
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
-        let system = system::System::init(ctx.core, ctx.device);
-        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
+
+        let mut core = ctx.core;
+        let device = ctx.device;
+        let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let system = libdaisy::system_init!(core, device, ccdr);
+        let buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }> = audio::AudioBuffer::new();
 
         info!("Startup done!");
 
@@ -57,7 +61,7 @@ mod app {
         let index: &mut usize = ctx.local.index;
 
         if audio.get_stereo(buffer) {
-            for (left, right) in buffer {
+            for (left, right) in buffer.iter() {
                 audio
                     .push_stereo((sdram[*index], sdram[*index + 1]))
                     .unwrap();

@@ -39,7 +39,35 @@ const S24_SIGN: i32 = 0x800000;
 /// Largest number of audio blocks for a single DMA operation
 pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
-pub type AudioBuffer = [(f32, f32); BLOCK_SIZE_MAX];
+pub struct AudioBuffer<const SIZE: usize> {
+    data: [(f32, f32); SIZE],
+}
+
+impl Default for AudioBuffer<BLOCK_SIZE_MAX> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<const SIZE: usize> AudioBuffer<SIZE> {
+    pub fn new() -> Self {
+        Self {
+            data: [(0.0, 0.0); SIZE],
+        }
+    }
+
+    pub fn as_mut_slice(&mut self) -> &mut [(f32, f32)] {
+        &mut self.data
+    }
+
+    pub fn iter(&self) -> core::slice::Iter<'_, (f32, f32)> {
+        self.data.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, (f32, f32)> {
+        self.data.iter_mut()
+    }
+}
 
 type DmaInputStream = dma::Transfer<
     dma::dma::Stream1<stm32::DMA1>,
@@ -443,14 +471,14 @@ impl Audio {
     }
 
     /// Gets the audio input from the DMA memory and writes it to buffer
-    pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) -> bool {
+    pub fn get_stereo<const SIZE: usize>(&mut self, buffer: &mut AudioBuffer<SIZE>) -> bool {
         if self.read() {
             for (i, (left, right)) in StereoIterator::new(
                 &self.input.buffer[self.input.index..self.input.index + MAX_TRANSFER_SIZE],
             )
             .enumerate()
             {
-                buffer[i] = (left, right);
+                buffer.as_mut_slice()[i] = (left, right);
             }
             true
         } else {

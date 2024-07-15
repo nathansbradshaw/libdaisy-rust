@@ -5,7 +5,11 @@
 
 #[rtic::app(device = stm32h7xx_hal::stm32, peripherals = true)]
 mod app {
-    use libdaisy::{gpio, system, hal::gpio::{Edge, ExtiPin}};
+    use libdaisy::{
+        gpio,
+        hal::gpio::{Edge, ExtiPin},
+        system,
+    };
 
     #[shared]
     struct SharedResources {}
