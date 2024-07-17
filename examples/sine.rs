@@ -7,13 +7,13 @@
     peripherals = true
 )]
 mod app {
-    use libdaisy::{audio, gpio::SeedLed, logger, system};
+    use libdaisy::{audio::{self, AudioBuffer}, gpio::SeedLed, logger, system};
     use libm;
     use log::info;
 
     pub struct AudioRate {
         pub audio: audio::Audio,
-        buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }>,
+        buffer: AudioBuffer,
     }
 
     #[shared]
@@ -35,7 +35,7 @@ mod app {
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let system = libdaisy::system_init!(core, device, ccdr);
         info!("Startup done!");
-        let buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }> = audio::AudioBuffer::new();
+        let buffer = [(0.0,0.0);audio::BLOCK_SIZE_MAX];
 
         (
             Shared {},
@@ -69,7 +69,7 @@ mod app {
         let led = ctx.local.led;
 
         audio.get_stereo(buffer);
-        for _ in 0..buffer.iter().len() {
+        for _ in 0..buffer.len() {
             // phase is gonna get bigger and bigger
             // at some point floating point errors will quantize the pitch
             *phase += *pitch / libdaisy::AUDIO_SAMPLE_RATE as f32;

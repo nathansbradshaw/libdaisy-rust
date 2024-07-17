@@ -6,7 +6,7 @@
     peripherals = true,
 )]
 mod app {
-    use libdaisy::audio::AudioBuffer;
+    const BLOCK_SIZE:usize = 48;
     use libdaisy::logger;
     use libdaisy::{audio, system};
     use log::info;
@@ -17,7 +17,7 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }>,
+        buffer: [(f32, f32); BLOCK_SIZE],
     }
 
     #[init]
@@ -30,9 +30,9 @@ mod app {
         let mut core = ctx.core;
         let device = ctx.device;
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
-        let system = libdaisy::system_init!(core, device, ccdr);
+        let system = libdaisy::system_init!(core, device, ccdr, BLOCK_SIZE);
 
-        let buffer: AudioBuffer<{ audio::BLOCK_SIZE_MAX }> = AudioBuffer::new();
+        let buffer = [(0.0, 0.0); BLOCK_SIZE];
 
         info!("Startup done!!");
 
@@ -62,7 +62,7 @@ mod app {
         let buffer = ctx.local.buffer;
 
         if audio.get_stereo(buffer) {
-            for (left, right) in buffer.iter() {
+            for (left, right) in buffer {
                 let _ = audio.push_stereo((*left, *right));
             }
         } else {

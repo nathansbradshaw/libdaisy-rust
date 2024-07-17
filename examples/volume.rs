@@ -10,6 +10,7 @@
 mod app {
     //use rtic::cyccnt::U32Ext;
 
+    use audio::AudioBuffer;
     use libdaisy::{audio, gpio::*, hid, logger, prelude::*, system, MILICYCLES};
     use log::info;
     use stm32h7xx_hal::{adc, stm32, time::MilliSeconds, timer::Timer};
@@ -22,7 +23,7 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }>,
+        buffer: AudioBuffer,
         adc1: adc::Adc<stm32::ADC1, adc::Enabled>,
         timer2: Timer<stm32::TIM2>,
     }
@@ -34,7 +35,7 @@ mod app {
         let device = ctx.device;
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let mut system = libdaisy::system_init!(core, device, ccdr);
-        let buffer: audio::AudioBuffer<{ audio::BLOCK_SIZE_MAX }> = audio::AudioBuffer::new();
+        let buffer = [(0.0,0.0);audio::BLOCK_SIZE_MAX];
 
         info!("Enable adc1");
         let mut adc1 = system.adc1.enable();
