@@ -299,7 +299,7 @@ impl Audio {
                 }
             }
             crate::system::Version::Seed2DFM => {
-                let rx_buffer: &'static mut [u32] = unsafe { &mut RX_BUFFER };
+                let rx_buffer: &'static mut [u32] = unsafe { &mut RX_BUFFER.as_mut_slice()[..block_size] };
                 let dma_config = dma::dma::DmaConfig::default()
                     .priority(dma::config::Priority::High)
                     .memory_increment(true)
@@ -314,7 +314,7 @@ impl Audio {
                     dma_config,
                 );
 
-                let tx_buffer: &'static mut [u32] = unsafe { &mut TX_BUFFER };
+                let tx_buffer: &'static mut [u32] = unsafe { &mut TX_BUFFER.as_mut_slice()[..block_size] };
                 let dma_config = dma_config
                     .transfer_complete_interrupt(true)
                     .half_transfer_interrupt(true);
@@ -445,7 +445,7 @@ impl Audio {
     }
 
     /// Gets the audio input from the DMA memory and writes it to buffer
-    pub fn get_stereo(&mut self, buffer: &mut [(f32, f32)]) -> bool {
+    pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) -> bool {
         if self.read() {
             for (i, (left, right)) in StereoIterator::new(
                 &self.input.buffer[self.input.index..self.input.index + MAX_TRANSFER_SIZE],

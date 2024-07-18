@@ -17,7 +17,7 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: [(f32, f32); BLOCK_SIZE],
+        buffer: audio::AudioBuffer,
     }
 
     #[init]
@@ -32,7 +32,7 @@ mod app {
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let system = libdaisy::system_init!(core, device, ccdr, BLOCK_SIZE);
 
-        let buffer = [(0.0, 0.0); BLOCK_SIZE];
+        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         info!("Startup done!!");
 
@@ -62,7 +62,7 @@ mod app {
         let buffer = ctx.local.buffer;
 
         if audio.get_stereo(buffer) {
-            for (left, right) in buffer {
+            for (left, right) in &buffer.as_slice()[..BLOCK_SIZE / 2] {
                 let _ = audio.push_stereo((*left, *right));
             }
         } else {
