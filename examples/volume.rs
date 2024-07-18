@@ -35,7 +35,7 @@ mod app {
         let device = ctx.device;
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let mut system = libdaisy::system_init!(core, device, ccdr);
-        let buffer = [(0.0,0.0);audio::BLOCK_SIZE_MAX];
+        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         info!("Enable adc1");
         let mut adc1 = system.adc1.enable();

@@ -6,7 +6,7 @@
     peripherals = true,
 )]
 mod app {
-    const BLOCK_SIZE:usize = 48;
+    const BLOCK_SIZE: usize = 48;
     use libdaisy::logger;
     use libdaisy::{audio, system};
     use log::info;

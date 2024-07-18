@@ -7,7 +7,11 @@
     peripherals = true
 )]
 mod app {
-    use libdaisy::{audio::{self, AudioBuffer}, gpio::SeedLed, logger, system};
+    use libdaisy::{
+        audio::{self, AudioBuffer},
+        gpio::SeedLed,
+        logger, system,
+    };
     use libm;
     use log::info;
 
@@ -35,7 +39,7 @@ mod app {
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let system = libdaisy::system_init!(core, device, ccdr);
         info!("Startup done!");
-        let buffer = [(0.0,0.0);audio::BLOCK_SIZE_MAX];
+        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         (
             Shared {},

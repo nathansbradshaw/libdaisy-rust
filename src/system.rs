@@ -147,7 +147,7 @@ macro_rules! system_init {
             gpioi_rec: $ccdr.peripheral.GPIOI,
             dma1: $device.DMA1,
             dma1_rec: $ccdr.peripheral.DMA1,
-            block_size: $block_size
+            block_size: $block_size,
         };
 
         libdaisy::system::System::init(resources)
@@ -352,7 +352,7 @@ impl System {
             resources.clocks,
             version,
             &mut delay,
-            resources.block_size
+            resources.block_size,
         );
 
         let (d31, d32) = match version {
