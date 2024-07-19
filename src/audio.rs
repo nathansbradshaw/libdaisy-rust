@@ -39,41 +39,13 @@ const S24_SIGN: i32 = 0x800000;
 /// Largest number of audio blocks for a single DMA operation
 pub const MAX_TRANSFER_SIZE: usize = BLOCK_SIZE_MAX * 2;
 
-pub struct AudioBuffer<const SIZE: usize> {
-    data: [(f32, f32); SIZE],
-}
-
-impl Default for AudioBuffer<BLOCK_SIZE_MAX> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<const SIZE: usize> AudioBuffer<SIZE> {
-    pub fn new() -> Self {
-        Self {
-            data: [(0.0, 0.0); SIZE],
-        }
-    }
-
-    pub fn as_mut_slice(&mut self) -> &mut [(f32, f32)] {
-        &mut self.data
-    }
-
-    pub fn iter(&self) -> core::slice::Iter<'_, (f32, f32)> {
-        self.data.iter()
-    }
-
-    pub fn iter_mut(&mut self) -> core::slice::IterMut<'_, (f32, f32)> {
-        self.data.iter_mut()
-    }
-}
+pub type AudioBuffer = [(f32, f32); BLOCK_SIZE_MAX];
 
 type DmaInputStream = dma::Transfer<
     dma::dma::Stream1<stm32::DMA1>,
     sai::dma::ChannelB<stm32::SAI1>,
     dma::MemoryToPeripheral,
-    &'static mut [u32; DMA_BUFFER_SIZE],
+    &'static mut [u32],
     dma::DBTransfer,
 >;
 
@@ -81,7 +53,7 @@ type DmaOutputStream = dma::Transfer<
     dma::dma::Stream0<stm32::DMA1>,
     sai::dma::ChannelA<stm32::SAI1>,
     dma::PeripheralToMemory,
-    &'static mut [u32; DMA_BUFFER_SIZE],
+    &'static mut [u32],
     dma::DBTransfer,
 >;
 
@@ -89,7 +61,7 @@ type DmaInputStreamS2dfm = dma::Transfer<
     dma::dma::Stream1<stm32::DMA1>,
     sai::dma::ChannelA<stm32::SAI1>,
     dma::MemoryToPeripheral,
-    &'static mut [u32; DMA_BUFFER_SIZE],
+    &'static mut [u32],
     dma::DBTransfer,
 >;
 
@@ -97,7 +69,7 @@ type DmaOutputStreamS2dfm = dma::Transfer<
     dma::dma::Stream0<stm32::DMA1>,
     sai::dma::ChannelB<stm32::SAI1>,
     dma::PeripheralToMemory,
-    &'static mut [u32; DMA_BUFFER_SIZE],
+    &'static mut [u32],
     dma::DBTransfer,
 >;
 
@@ -156,7 +128,14 @@ impl From<f32> for S24 {
 
 impl From<S24> for f32 {
     fn from(x: S24) -> f32 {
-        ((x.0 ^ S24_SIGN) - S24_SIGN) as f32 * S24_TO_F32_SCALE
+        let sign_bit = x.0 & S24_SIGN;
+        let magnitude = x.0 & !S24_SIGN;
+
+        if sign_bit == 0 {
+            magnitude as f32 * S24_TO_F32_SCALE
+        } else {
+            -(magnitude as f32 * S24_TO_F32_SCALE)
+        }
     }
 }
 
@@ -166,6 +145,7 @@ pub struct Audio {
     input: Input,
     output: Output,
     audio_stream: AudioStream,
+    max_transfer_size: usize,
 }
 
 impl Audio {
@@ -193,10 +173,13 @@ impl Audio {
         clocks: &rcc::CoreClocks,
         board_version: crate::system::Version,
         delay: &mut impl DelayMs<u8>,
+
+        block_size: usize,
     ) -> Self {
         match board_version {
             crate::system::Version::Seed | crate::system::Version::Seed1_1 => {
-                let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+                let rx_buffer: &'static mut [u32] =
+                    unsafe { &mut RX_BUFFER.as_mut_slice()[..block_size] };
                 let dma_config = dma::dma::DmaConfig::default()
                     .priority(dma::config::Priority::High)
                     .memory_increment(true)
@@ -211,7 +194,8 @@ impl Audio {
                     dma_config,
                 );
 
-                let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+                let tx_buffer: &'static mut [u32] =
+                    unsafe { &mut TX_BUFFER.as_mut_slice()[..block_size] };
                 let dma_config = dma_config
                     .transfer_complete_interrupt(true)
                     .half_transfer_interrupt(true);
@@ -306,8 +290,9 @@ impl Audio {
                     sai.try_send(0, 0).unwrap();
                 });
 
-                let input = Input::new(unsafe { &mut RX_BUFFER });
-                let output = Output::new(unsafe { &mut TX_BUFFER });
+                let max_transfer_size = block_size * 2;
+                let input = Input::new(unsafe { &mut RX_BUFFER }, max_transfer_size);
+                let output = Output::new(unsafe { &mut TX_BUFFER }, max_transfer_size);
 
                 info!(
                     "Setup up Audio DMA: input: {:?}, output: {:?}",
@@ -322,10 +307,12 @@ impl Audio {
                     },
                     input,
                     output,
+                    max_transfer_size,
                 }
             }
             crate::system::Version::Seed2DFM => {
-                let rx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut RX_BUFFER };
+                let rx_buffer: &'static mut [u32] =
+                    unsafe { &mut RX_BUFFER.as_mut_slice()[..block_size] };
                 let dma_config = dma::dma::DmaConfig::default()
                     .priority(dma::config::Priority::High)
                     .memory_increment(true)
@@ -340,7 +327,8 @@ impl Audio {
                     dma_config,
                 );
 
-                let tx_buffer: &'static mut [u32; DMA_BUFFER_SIZE] = unsafe { &mut TX_BUFFER };
+                let tx_buffer: &'static mut [u32] =
+                    unsafe { &mut TX_BUFFER.as_mut_slice()[..block_size] };
                 let dma_config = dma_config
                     .transfer_complete_interrupt(true)
                     .half_transfer_interrupt(true);
@@ -397,8 +385,9 @@ impl Audio {
                     sai.try_send(0, 0).unwrap();
                 });
 
-                let input = Input::new(unsafe { &mut RX_BUFFER });
-                let output = Output::new(unsafe { &mut TX_BUFFER });
+                let max_transfer_size = block_size * 2;
+                let input = Input::new(unsafe { &mut RX_BUFFER }, max_transfer_size);
+                let output = Output::new(unsafe { &mut TX_BUFFER }, max_transfer_size);
 
                 info!(
                     "Setup up Audio DMA: input: {:?}, output: {:?}",
@@ -413,6 +402,7 @@ impl Audio {
                     },
                     input,
                     output,
+                    max_transfer_size,
                 }
             }
         }
@@ -430,8 +420,8 @@ impl Audio {
                     true
                 } else if input.get_transfer_complete_flag() {
                     input.clear_transfer_complete_interrupt();
-                    self.input.set_index(MAX_TRANSFER_SIZE);
-                    self.output.set_index(MAX_TRANSFER_SIZE);
+                    self.input.set_index(self.max_transfer_size);
+                    self.output.set_index(self.max_transfer_size);
                     true
                 } else {
                     false
@@ -445,8 +435,8 @@ impl Audio {
                     true
                 } else if input.get_transfer_complete_flag() {
                     input.clear_transfer_complete_interrupt();
-                    self.input.set_index(MAX_TRANSFER_SIZE);
-                    self.output.set_index(MAX_TRANSFER_SIZE);
+                    self.input.set_index(self.max_transfer_size);
+                    self.output.set_index(self.max_transfer_size);
                     true
                 } else {
                     false
@@ -461,7 +451,7 @@ impl Audio {
         if self.read() {
             let mut index = 0;
             let mut out_index = self.output.index;
-            while index < MAX_TRANSFER_SIZE {
+            while index < self.max_transfer_size {
                 self.output.buffer[out_index] = self.input.buffer[index + self.input.index];
                 self.output.buffer[out_index + 1] = self.input.buffer[index + self.input.index + 1];
                 index += 2;
@@ -471,14 +461,14 @@ impl Audio {
     }
 
     /// Gets the audio input from the DMA memory and writes it to buffer
-    pub fn get_stereo<const SIZE: usize>(&mut self, buffer: &mut AudioBuffer<SIZE>) -> bool {
+    pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) -> bool {
         if self.read() {
             for (i, (left, right)) in StereoIterator::new(
-                &self.input.buffer[self.input.index..self.input.index + MAX_TRANSFER_SIZE],
+                &self.input.buffer[self.input.index..self.input.index + self.max_transfer_size],
             )
             .enumerate()
             {
-                buffer.as_mut_slice()[i] = (left, right);
+                buffer[i] = (left, right);
             }
             true
         } else {
@@ -489,7 +479,7 @@ impl Audio {
     fn get_stereo_iter(&mut self) -> Option<StereoIterator> {
         if self.read() {
             return Some(StereoIterator::new(
-                &self.input.buffer[self.input.index..MAX_TRANSFER_SIZE],
+                &self.input.buffer[self.input.index..self.max_transfer_size],
             ));
         }
         None
@@ -506,12 +496,17 @@ impl Audio {
 struct Input {
     index: usize,
     buffer: &'static DmaBuffer,
+    max_transfer_size: usize,
 }
 
 impl Input {
     /// Create a new Input from a DmaBuffer
-    fn new(buffer: &'static DmaBuffer) -> Self {
-        Self { index: 0, buffer }
+    fn new(buffer: &'static DmaBuffer, max_transfer_size: usize) -> Self {
+        Self {
+            index: 0,
+            buffer,
+            max_transfer_size,
+        }
     }
 
     fn set_index(&mut self, index: usize) {
@@ -527,12 +522,17 @@ impl Input {
 struct Output {
     index: usize,
     buffer: &'static mut DmaBuffer,
+    max_transfer_size: usize,
 }
 
 impl Output {
     /// Create a new Input from a DmaBuffer
-    fn new(buffer: &'static mut DmaBuffer) -> Self {
-        Self { index: 0, buffer }
+    fn new(buffer: &'static mut DmaBuffer, max_transfer_size: usize) -> Self {
+        Self {
+            index: 0,
+            buffer,
+            max_transfer_size,
+        }
     }
 
     fn set_index(&mut self, index: usize) {
@@ -540,7 +540,7 @@ impl Output {
     }
 
     pub fn push(&mut self, data: (f32, f32)) -> Result<(), ()> {
-        if self.index < (MAX_TRANSFER_SIZE * 2) {
+        if self.index < (self.max_transfer_size * 2) {
             self.buffer[self.index] = S24::from(data.0).into();
             self.buffer[self.index + 1] = S24::from(data.1).into();
             self.index += 2;
