@@ -6,13 +6,15 @@
 #[rtic::app(device = stm32h7xx_hal::stm32, peripherals = true)]
 mod app {
     use libdaisy::{
-        gpio, hal::gpio::{Edge, ExtiPin}, logger, system
+        gpio,
+        hal::gpio::{Edge, ExtiPin},
+        logger, system,
     };
     use log::info;
 
     #[shared]
     struct Shared {}
-    
+
     #[local]
     struct Local {
         button: gpio::SeedButton,

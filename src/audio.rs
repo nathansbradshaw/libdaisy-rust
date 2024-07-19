@@ -128,11 +128,9 @@ impl From<f32> for S24 {
 
 impl From<S24> for f32 {
     fn from(x: S24) -> f32 {
-        // Extract the sign bit and the magnitude
         let sign_bit = x.0 & S24_SIGN;
         let magnitude = x.0 & !S24_SIGN;
 
-        // Convert the magnitude to f32 and apply the sign
         if sign_bit == 0 {
             magnitude as f32 * S24_TO_F32_SCALE
         } else {
@@ -140,7 +138,6 @@ impl From<S24> for f32 {
         }
     }
 }
-
 
 /// Core struct for handling audio I/O
 pub struct Audio {
