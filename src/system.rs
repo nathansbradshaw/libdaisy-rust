@@ -105,7 +105,7 @@ pub struct SystemResources<'a> {
 #[macro_export]
 macro_rules! system_init {
     ($core:ident, $device:ident, $ccdr:ident) => {
-        libdaisy::system_init!($core, $device, $ccdr, 1024);
+        libdaisy::system_init!($core, $device, $ccdr, libdaisy::audio::BLOCK_SIZE_MAX);
     };
     ($core:ident, $device:ident, $ccdr:ident, $block_size:expr) => {{
         let resources = libdaisy::system::SystemResources {
