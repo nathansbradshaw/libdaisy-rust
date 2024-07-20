@@ -6,7 +6,7 @@
     peripherals = true,
 )]
 mod app {
-    const BLOCK_SIZE: usize = 48;
+    const BLOCK_SIZE: usize = 128;
     use libdaisy::logger;
     use libdaisy::{audio, system};
     use log::info;
@@ -62,7 +62,7 @@ mod app {
         let buffer = ctx.local.buffer;
 
         if audio.get_stereo(buffer) {
-            for (left, right) in &buffer.as_slice()[..BLOCK_SIZE / 2] {
+            for (left, right) in &buffer.as_slice()[..BLOCK_SIZE ] {
                 let _ = audio.push_stereo((*left, *right));
             }
         } else {
