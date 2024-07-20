@@ -53,7 +53,6 @@ mod app {
         // Transform linear input into logarithmic
         control1.set_transform(|x| x * x);
 
-        //TODO check if timer is correct
         let timer2 = stm32h7xx_hal::timer::TimerExt::timer(
             device.TIM2,
             MilliSeconds::from_ticks(100).into_rate(),

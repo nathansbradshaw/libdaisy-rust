@@ -128,14 +128,7 @@ impl From<f32> for S24 {
 
 impl From<S24> for f32 {
     fn from(x: S24) -> f32 {
-        let sign_bit = x.0 & S24_SIGN;
-        let magnitude = x.0 & !S24_SIGN;
-
-        if sign_bit == 0 {
-            magnitude as f32 * S24_TO_F32_SCALE
-        } else {
-            -(magnitude as f32 * S24_TO_F32_SCALE)
-        }
+        ((x.0 << 8) >> 8) as f32 * S24_TO_F32_SCALE
     }
 }
 
