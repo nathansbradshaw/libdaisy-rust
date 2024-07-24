@@ -62,7 +62,7 @@ mod app {
         let buffer = ctx.local.buffer;
 
         if audio.get_stereo(buffer) {
-            for (left, right) in &buffer.as_slice()[..BLOCK_SIZE ] {
+            for (left, right) in &buffer.as_slice()[..BLOCK_SIZE] {
                 let _ = audio.push_stereo((*left, *right));
             }
         } else {

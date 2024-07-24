@@ -171,8 +171,9 @@ impl Audio {
     ) -> Self {
         match board_version {
             crate::system::Version::Seed | crate::system::Version::Seed1_1 => {
+                let dma_buffer_size = block_size * 2 * 2;
                 let rx_buffer: &'static mut [u32] =
-                    unsafe { &mut RX_BUFFER.as_mut_slice()[..block_size * 2 * 2] };
+                    unsafe { &mut RX_BUFFER.as_mut_slice()[..dma_buffer_size] };
                 let dma_config = dma::dma::DmaConfig::default()
                     .priority(dma::config::Priority::High)
                     .memory_increment(true)
@@ -188,7 +189,7 @@ impl Audio {
                 );
 
                 let tx_buffer: &'static mut [u32] =
-                    unsafe { &mut TX_BUFFER.as_mut_slice()[..block_size * 2 * 2] };
+                    unsafe { &mut TX_BUFFER.as_mut_slice()[..dma_buffer_size] };
                 let dma_config = dma_config
                     .transfer_complete_interrupt(true)
                     .half_transfer_interrupt(true);
@@ -304,8 +305,9 @@ impl Audio {
                 }
             }
             crate::system::Version::Seed2DFM => {
+                let dma_buffer_size = block_size * 2 * 2;
                 let rx_buffer: &'static mut [u32] =
-                    unsafe { &mut RX_BUFFER.as_mut_slice()[..block_size] };
+                    unsafe { &mut RX_BUFFER.as_mut_slice()[..dma_buffer_size] };
                 let dma_config = dma::dma::DmaConfig::default()
                     .priority(dma::config::Priority::High)
                     .memory_increment(true)
@@ -321,7 +323,7 @@ impl Audio {
                 );
 
                 let tx_buffer: &'static mut [u32] =
-                    unsafe { &mut TX_BUFFER.as_mut_slice()[..block_size] };
+                    unsafe { &mut TX_BUFFER.as_mut_slice()[..dma_buffer_size] };
                 let dma_config = dma_config
                     .transfer_complete_interrupt(true)
                     .half_transfer_interrupt(true);
