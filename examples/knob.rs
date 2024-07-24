@@ -33,7 +33,7 @@ mod app {
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let mut system = libdaisy::system_init!(core, device, ccdr);
         info!("Startup done!");
-        //TODO check this
+
         let mut timer2 = stm32h7xx_hal::timer::TimerExt::timer(
             device.TIM2,
             MilliSeconds::from_ticks(100).into_rate(),
