@@ -230,7 +230,7 @@ impl Audio {
                 // Besides this CODEC startup, the code for the Seed and
                 // Seed 1.1 is the same.
                 match board_version {
-                    crate::system::Version::Seed => {
+                    crate::system::Version::Seed1_1 => {
                         info!("Setting up WM8731 Audio Codec...");
                         let i2c2_pins = (
                             i2c_scl.into_alternate_open_drain(),
@@ -256,7 +256,7 @@ impl Audio {
                             delay.delay_ms(1);
                         }
                     }
-                    crate::system::Version::Seed1_1 => {
+                    crate::system::Version::Seed => {
                         info!("Setting up AK4556 Audio Codec...");
                         let mut ak_reset = i2c_sda
                             .into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::High);
