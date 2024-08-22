@@ -5,25 +5,30 @@
 
 #[rtic::app(device = stm32h7xx_hal::stm32, peripherals = true)]
 mod app {
-    use libdaisy::{gpio, system};
-    use stm32h7xx_hal::gpio::{Edge, ExtiPin};
+    use libdaisy::{
+        gpio,
+        hal::gpio::{Edge, ExtiPin},
+        logger, system,
+    };
+    use log::info;
 
     #[shared]
-    struct SharedResources {}
+    struct Shared {}
+
     #[local]
-    struct LocalResources {
+    struct Local {
         button: gpio::SeedButton,
         led: gpio::SeedLed,
     }
 
-    use panic_halt as _;
-
     #[init]
-    fn init(ctx: init::Context) -> (SharedResources, LocalResources, init::Monotonics) {
+    fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
+        logger::init();
         let mut core = ctx.core;
         let mut device = ctx.device;
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let mut system = libdaisy::system_init!(core, device, ccdr);
+        info!("Startup done!");
 
         // Button
         system.gpio.button.make_interrupt_source(&mut device.SYSCFG);
@@ -34,8 +39,8 @@ mod app {
         system.gpio.button.enable_interrupt(&mut device.EXTI);
 
         (
-            SharedResources {},
-            LocalResources {
+            Shared {},
+            Local {
                 button: system.gpio.button,
                 led: system.gpio.led,
             },

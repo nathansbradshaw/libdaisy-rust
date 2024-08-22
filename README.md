@@ -33,6 +33,7 @@ One of:
 ```bash
 cargo embed --features log-rtt --example passthru
 ```
+**note** You will need to specify the board IE `--chip stm32h750v` for the daisy seed, or create an `Embed.toml` that specifies the chip.
 
 ## Build Examples
 

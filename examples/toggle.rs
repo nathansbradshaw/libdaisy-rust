@@ -10,6 +10,7 @@ mod app {
     use libdaisy::logger;
     use libdaisy::{gpio::*, hid, prelude::*, system};
     use log::info;
+    use stm32h7xx_hal::time::MilliSeconds;
     use stm32h7xx_hal::{stm32, time::Hertz, timer::Timer};
 
     #[shared]
@@ -25,7 +26,17 @@ mod app {
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
-        let mut system = system::System::init(ctx.core, ctx.device);
+        let mut core = ctx.core;
+        let device = ctx.device;
+        let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let mut system = libdaisy::system_init!(core, device, ccdr);
+        info!("Startup done!");
+        let mut timer2 = stm32h7xx_hal::timer::TimerExt::timer(
+            device.TIM2,
+            MilliSeconds::from_ticks(100).into_rate(),
+            ccdr.peripheral.TIM2,
+            &ccdr.clocks,
+        );
 
         let daisy28 = system
             .gpio
@@ -34,7 +45,7 @@ mod app {
             .expect("Failed to get pin daisy28!")
             .into_pull_up_input();
 
-        system.timer2.set_freq(Hertz::from_raw(100));
+        timer2.set_freq(Hertz::from_raw(100));
 
         let switch1 = hid::Switch::new(daisy28, hid::SwitchType::PullUp);
 
@@ -43,7 +54,7 @@ mod app {
             Local {
                 seed_led: system.gpio.led,
                 switch1,
-                timer2: system.timer2,
+                timer2,
             },
             init::Monotonics(),
         )

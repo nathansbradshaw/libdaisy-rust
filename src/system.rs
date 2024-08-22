@@ -98,13 +98,16 @@ pub struct SystemResources<'a> {
 
     pub dma1: stm32::DMA1,
     pub dma1_rec: rcc::rec::Dma1,
+
+    pub block_size: usize,
 }
 
 #[macro_export]
 macro_rules! system_init {
-    ($core:ident, $device:ident, $ccdr:ident) => {{
-        // let ccdr = libdaisy::system::System::init_clocks($device.PWR, $device.RCC, &$device.SYSCFG);
-
+    ($core:ident, $device:ident, $ccdr:ident) => {
+        libdaisy::system_init!($core, $device, $ccdr, libdaisy::audio::BLOCK_SIZE_MAX);
+    };
+    ($core:ident, $device:ident, $ccdr:ident, $block_size:expr) => {{
         let resources = libdaisy::system::SystemResources {
             clocks: &$ccdr.clocks,
             adc1: $device.ADC1,
@@ -144,6 +147,7 @@ macro_rules! system_init {
             gpioi_rec: $ccdr.peripheral.GPIOI,
             dma1: $device.DMA1,
             dma1_rec: $ccdr.peripheral.DMA1,
+            block_size: $block_size,
         };
 
         libdaisy::system::System::init(resources)
@@ -348,6 +352,7 @@ impl System {
             resources.clocks,
             version,
             &mut delay,
+            resources.block_size,
         );
 
         let (d31, d32) = match version {

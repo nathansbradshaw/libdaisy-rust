@@ -11,6 +11,7 @@ mod app {
     use libdaisy::logger;
     use libdaisy::{gpio::*, hid, prelude::*, system};
     use log::info;
+    use stm32h7xx_hal::time::MilliSeconds;
     use stm32h7xx_hal::{adc, stm32, timer::Timer};
 
     #[shared]
@@ -27,12 +28,25 @@ mod app {
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
-        let mut system = system::System::init(ctx.core, ctx.device);
+        let mut core = ctx.core;
+        let device = ctx.device;
+        let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let mut system = libdaisy::system_init!(core, device, ccdr);
+        info!("Startup done!");
+
+        let mut timer2 = stm32h7xx_hal::timer::TimerExt::timer(
+            device.TIM2,
+            MilliSeconds::from_ticks(100).into_rate(),
+            ccdr.peripheral.TIM2,
+            &ccdr.clocks,
+        );
+
+        timer2.listen(stm32h7xx_hal::timer::Event::TimeOut);
 
         let duty_cycle = 50;
         let resolution = 20;
 
-        system.timer2.set_freq((duty_cycle * resolution).Hz());
+        timer2.set_freq((duty_cycle * resolution).Hz());
 
         let daisy28 = system
             .gpio
@@ -62,7 +76,7 @@ mod app {
                 led1,
                 adc1,
                 control1,
-                timer2: system.timer2,
+                timer2,
             },
             init::Monotonics(),
         )

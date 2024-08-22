@@ -26,12 +26,21 @@ mod app {
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
-        let mut system = system::System::init(ctx.core, ctx.device);
+        let mut core = ctx.core;
+        let device = ctx.device;
+        let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let system = libdaisy::system_init!(core, device, ccdr);
         info!("Startup done!");
+        let mut timer2 = stm32h7xx_hal::timer::TimerExt::timer(
+            device.TIM2,
+            MilliSeconds::from_ticks(100).into_rate(),
+            ccdr.peripheral.TIM2,
+            &ccdr.clocks,
+        );
 
-        system
-            .timer2
-            .set_freq(MilliSeconds::from_ticks(500).into_rate());
+        timer2.listen(stm32h7xx_hal::timer::Event::TimeOut);
+
+        timer2.set_freq(MilliSeconds::from_ticks(500).into_rate());
 
         let mut flash = system.flash;
 
@@ -79,7 +88,7 @@ mod app {
             Shared {},
             Local {
                 seed_led: system.gpio.led,
-                timer2: system.timer2,
+                timer2,
             },
             init::Monotonics(),
         )

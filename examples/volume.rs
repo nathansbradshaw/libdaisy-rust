@@ -10,9 +10,10 @@
 mod app {
     //use rtic::cyccnt::U32Ext;
 
+    use audio::AudioBuffer;
     use libdaisy::{audio, gpio::*, hid, logger, prelude::*, system, MILICYCLES};
     use log::info;
-    use stm32h7xx_hal::{adc, stm32, timer::Timer};
+    use stm32h7xx_hal::{adc, stm32, time::MilliSeconds, timer::Timer};
 
     #[shared]
     struct Shared {
@@ -22,7 +23,7 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer,
+        buffer: AudioBuffer,
         adc1: adc::Adc<stm32::ADC1, adc::Enabled>,
         timer2: Timer<stm32::TIM2>,
     }
@@ -30,7 +31,10 @@ mod app {
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
-        let mut system = system::System::init(ctx.core, ctx.device);
+        let mut core = ctx.core;
+        let device = ctx.device;
+        let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let mut system = libdaisy::system_init!(core, device, ccdr);
         let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         info!("Enable adc1");
@@ -49,13 +53,20 @@ mod app {
         // Transform linear input into logarithmic
         control1.set_transform(|x| x * x);
 
+        let timer2 = stm32h7xx_hal::timer::TimerExt::timer(
+            device.TIM2,
+            MilliSeconds::from_ticks(100).into_rate(),
+            ccdr.peripheral.TIM2,
+            &ccdr.clocks,
+        );
+
         (
             Shared { control1 },
             Local {
                 audio: system.audio,
                 buffer,
                 adc1,
-                timer2: system.timer2,
+                timer2,
             },
             init::Monotonics(),
         )
@@ -76,7 +87,7 @@ mod app {
         let audio_handler::LocalResources { audio, buffer } = ctx.local;
 
         if audio.get_stereo(buffer) {
-            for (left, right) in buffer {
+            for (left, right) in buffer.iter_mut() {
                 ctx.shared.control1.lock(|c| {
                     let volume = c.get_value();
                     info!("{}", volume);

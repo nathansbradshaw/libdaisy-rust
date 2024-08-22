@@ -6,7 +6,9 @@
     peripherals = true,
 )]
 mod app {
-    use libdaisy::{audio, logger, system};
+    const BLOCK_SIZE: usize = 128;
+    use libdaisy::logger;
+    use libdaisy::{audio, system};
     use log::info;
 
     #[shared]
@@ -21,10 +23,18 @@ mod app {
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
-        let system = system::System::init(ctx.core, ctx.device);
+
+        // Latest changes here. This approach allows you to
+        // access peripherals and resources that were simply
+        // moved out of the function in the previous implementation.
+        let mut core = ctx.core;
+        let device = ctx.device;
+        let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let system = libdaisy::system_init!(core, device, ccdr, BLOCK_SIZE);
+
         let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
-        info!("Startup done!");
+        info!("Startup done!!");
 
         (
             Shared {},
@@ -52,8 +62,8 @@ mod app {
         let buffer = ctx.local.buffer;
 
         if audio.get_stereo(buffer) {
-            for (left, right) in buffer {
-                audio.push_stereo((*left, *right)).unwrap();
+            for (left, right) in &buffer.as_slice()[..BLOCK_SIZE] {
+                let _ = audio.push_stereo((*left, *right));
             }
         } else {
             info!("Error reading data!");

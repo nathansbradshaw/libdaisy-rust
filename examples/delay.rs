@@ -7,7 +7,10 @@
     peripherals = true,
 )]
 mod app {
-    use libdaisy::{audio, logger, system};
+    use libdaisy::{
+        audio::{self, AudioBuffer},
+        logger, system,
+    };
     use log::info;
 
     #[shared]
@@ -16,14 +19,18 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer,
+        buffer: AudioBuffer,
         sdram: &'static mut [f32],
     }
 
     #[init]
     fn init(ctx: init::Context) -> (Shared, Local, init::Monotonics) {
         logger::init();
-        let system = system::System::init(ctx.core, ctx.device);
+
+        let mut core = ctx.core;
+        let device = ctx.device;
+        let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
+        let system = libdaisy::system_init!(core, device, ccdr);
         let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         info!("Startup done!");
