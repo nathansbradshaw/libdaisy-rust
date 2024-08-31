@@ -6,7 +6,7 @@ use log::info;
 use stm32h7xx_hal::{
     adc,
     delay::Delay,
-    dma,
+    dma, gpio,
     prelude::*,
     rcc, stm32,
     time::{Hertz, MegaHertz},
@@ -44,7 +44,13 @@ pub struct System {
     pub adc2: adc::Adc<stm32::ADC2, adc::Disabled>,
     pub sdram: &'static mut [f32],
     pub flash: crate::flash::Flash,
+    pub internal_usb: Option<InternalUsbPins>,
     pub delay: Delay,
+}
+
+pub struct InternalUsbPins {
+    pub dp: gpio::gpioa::PA12<gpio::Analog>,
+    pub dm: gpio::gpioa::PA11<gpio::Analog>,
 }
 
 /// All peripherals and other resources required for the system
@@ -209,7 +215,7 @@ impl System {
             .freeze(vos, syscfg)
     }
 
-    /// Setup cache
+    /// Set up cache
     pub fn init_cache(
         scb: &mut cortex_m::peripheral::SCB,
         cpuid: &mut cortex_m::peripheral::CPUID,
@@ -228,7 +234,7 @@ impl System {
     /// Batteries included initialization
     pub fn init(resources: SystemResources) -> System {
         info!("Starting system init");
-        info!("Setup up DMA RAM in DRAM2...");
+        info!("Set up up DMA RAM in DRAM2...");
         crate::mpu::init_dma(
             resources.mpu,
             resources.scb,
@@ -238,7 +244,7 @@ impl System {
 
         let mut delay = Delay::new(resources.syst, *resources.clocks);
 
-        // Setup ADCs
+        // Set up ADCs
         let (adc1, adc2) = adc::adc12(
             resources.adc1,
             resources.adc2,
@@ -332,7 +338,7 @@ impl System {
 
         let dma1_streams = dma::dma::StreamsTuple::new(resources.dma1, resources.dma1_rec);
 
-        info!("Setup up Audio...");
+        info!("Set up Audio...");
         let version = Self::detect_version(gpiod.pd4, gpiod.pd3);
 
         let audio = Audio::new(
@@ -360,7 +366,7 @@ impl System {
             _ => (None, None),
         };
 
-        // Setup GPIOs
+        // Set up GPIOs
         let gpio = crate::gpio::GPIO::init(
             gpioc.pc7,
             gpiog.pg3,
@@ -399,12 +405,12 @@ impl System {
             d32,
         );
 
-        // Setup cache
+        // Set up cache
         Self::init_cache(resources.scb, resources.cpuid);
 
         info!("System init done!");
 
-        //setup flash
+        // set up flash
         let flash = crate::flash::Flash::new(
             resources.qspi,
             resources.qspi_rec,
@@ -417,6 +423,12 @@ impl System {
             gpiog.pg6,
         );
 
+        // grab internal usb pins
+        let internal_usb = InternalUsbPins {
+            dp: gpioa.pa12,
+            dm: gpioa.pa11,
+        };
+
         System {
             gpio,
             audio,
@@ -424,6 +436,7 @@ impl System {
             adc2,
             sdram,
             flash,
+            internal_usb: Some(internal_usb),
             delay,
         }
     }
