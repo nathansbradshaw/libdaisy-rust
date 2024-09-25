@@ -115,14 +115,7 @@ impl From<S24> for u32 {
 
 impl From<f32> for S24 {
     fn from(x: f32) -> S24 {
-        let x = if x <= FBIPMIN {
-            FBIPMIN
-        } else if x >= FBIPMAX {
-            FBIPMAX
-        } else {
-            x
-        };
-        S24((x * F32_TO_S24_SCALE) as i32)
+        S24((x.clamp(FBIPMIN, FBIPMAX) * F32_TO_S24_SCALE) as i32)
     }
 }
 
@@ -170,7 +163,7 @@ impl Audio {
         block_size: usize,
     ) -> Self {
         match board_version {
-            crate::system::Version::Seed | crate::system::Version::Seed1_1 => {
+            crate::system::Version::Seed1_1 => {
                 let dma_buffer_size = block_size * 2 * 2;
                 let rx_buffer: &'static mut [u32] =
                     unsafe { &mut RX_BUFFER.as_mut_slice()[..dma_buffer_size] };
@@ -227,45 +220,28 @@ impl Audio {
                     I2sUsers::new(master_config).add_slave(slave_config),
                 );
 
-                // Besides this CODEC startup, the code for the Seed and
-                // Seed 1.1 is the same.
-                match board_version {
-                    crate::system::Version::Seed1_1 => {
-                        info!("Setting up WM8731 Audio Codec...");
-                        let i2c2_pins = (
-                            i2c_scl.into_alternate_open_drain(),
-                            i2c_sda.into_alternate_open_drain(),
-                        );
+                info!("Setting up WM8731 Audio Codec...");
+                let i2c2_pins = (
+                    i2c_scl.into_alternate_open_drain(),
+                    i2c_sda.into_alternate_open_drain(),
+                );
 
-                        let mut i2c =
-                            i2c2_d.i2c(i2c2_pins, Hertz::from_raw(100_000), i2c2_p, clocks);
+                let mut i2c = i2c2_d.i2c(i2c2_pins, Hertz::from_raw(100_000), i2c2_p, clocks);
 
-                        let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
+                let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
 
-                        // Go through configuration setup
-                        for (register, value) in REGISTER_CONFIG {
-                            let register: u8 = (*register).into();
-                            let value: u8 = *value;
-                            let byte1: u8 =
-                                ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
-                            let byte2: u8 = value;
-                            let bytes = [byte1, byte2];
+                // Go through configuration setup
+                for (register, value) in REGISTER_CONFIG {
+                    let register: u8 = (*register).into();
+                    let value: u8 = *value;
+                    let byte1: u8 =
+                        ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
+                    let byte2: u8 = value;
+                    let bytes = [byte1, byte2];
 
-                            i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
+                    i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
 
-                            delay.delay_ms(1);
-                        }
-                    }
-                    crate::system::Version::Seed => {
-                        info!("Setting up AK4556 Audio Codec...");
-                        let mut ak_reset = i2c_sda
-                            .into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::High);
-                        delay.delay_ms(1);
-                        ak_reset.set_low();
-                        delay.delay_ms(1);
-                        ak_reset.set_high();
-                    }
-                    crate::system::Version::Seed2DFM => unreachable!(),
+                    delay.delay_ms(1);
                 }
 
                 info!("Start audio stream...");
@@ -304,7 +280,7 @@ impl Audio {
                     max_transfer_size,
                 }
             }
-            crate::system::Version::Seed2DFM => {
+            crate::system::Version::Seed2DFM | crate::system::Version::Seed => {
                 let dma_buffer_size = block_size * 2 * 2;
                 let rx_buffer: &'static mut [u32] =
                     unsafe { &mut RX_BUFFER.as_mut_slice()[..dma_buffer_size] };
@@ -361,8 +337,23 @@ impl Audio {
                     I2sUsers::new(master_config).add_slave(slave_config),
                 );
 
-                info!("Setting up PCM3060 Audio Codec...");
-                i2c_sda.into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::Low);
+                match board_version {
+                    crate::system::Version::Seed => {
+                        info!("Setting up AK4556/PCM3060 Audio CODEC...");
+                        let mut ak_reset = i2c_sda
+                            .into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::High);
+                        delay.delay_ms(1);
+                        ak_reset.set_low();
+                        delay.delay_ms(1);
+                        ak_reset.set_high();
+                    }
+                    crate::system::Version::Seed2DFM => {
+                        // Set deemphasis low
+                        info!("Setting up PCM3060 Audio CODEC...");
+                        i2c_sda.into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::Low);
+                    }
+                    _ => unreachable!(),
+                }
 
                 info!("Start audio stream...");
                 input_stream.start(|_sai1_rb| {
