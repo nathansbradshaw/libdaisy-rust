@@ -273,13 +273,8 @@ where
 
     /// Set the brightness of the LED from 0.0 to 1.0.
     pub fn set_brightness(&mut self, value: f32) {
-        let value = if value > 1.0 {
-            1.0
-        } else if value < 0.0 {
-            0.0
-        } else {
-            value
-        };
+        let value = value.clamp(0., 1.);
+
         match self.invert {
             // Bias for slower transitions in the low brightness range
             // TODO configurable?
