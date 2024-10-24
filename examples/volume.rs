@@ -23,7 +23,6 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: AudioBuffer,
         adc1: adc::Adc<stm32::ADC1, adc::Enabled>,
         timer2: Timer<stm32::TIM2>,
     }
@@ -35,7 +34,6 @@ mod app {
         let device = ctx.device;
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let mut system = libdaisy::system_init!(core, device, ccdr);
-        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
 
         info!("Enable adc1");
         let mut adc1 = system.adc1.enable();
@@ -64,7 +62,6 @@ mod app {
             Shared { control1 },
             Local {
                 audio: system.audio,
-                buffer,
                 adc1,
                 timer2,
             },
@@ -82,21 +79,16 @@ mod app {
     }
 
     // Interrupt handler for audio
-    #[task(binds = DMA1_STR1, local = [audio, buffer], shared = [control1], priority = 8)]
+    #[task(binds = DMA1_STR1, local = [audio], shared = [control1], priority = 8)]
     fn audio_handler(mut ctx: audio_handler::Context) {
-        let audio_handler::LocalResources { audio, buffer } = ctx.local;
+        let audio = ctx.local.audio;
 
-        if audio.get_stereo(buffer) {
-            for (left, right) in buffer.iter_mut() {
-                ctx.shared.control1.lock(|c| {
-                    let volume = c.get_value();
-                    info!("{}", volume);
-                    *left *= volume;
-                    *right *= volume;
-                    audio.push_stereo((*left, *right)).unwrap();
-                });
-            }
-        }
+        ctx.shared.control1.lock(|c| {
+            let volume = c.get_value();
+            info!("{}", volume);
+
+            audio.for_each(|left, right| (left * volume, right * volume));
+        });
     }
 
     #[task(binds = TIM2, local = [timer2, adc1], shared = [control1])]

@@ -56,14 +56,6 @@ mod app {
         let _ = ccdr.clocks.hsi48_ck().expect("HSI48 must run");
         ccdr.peripheral.kernel_usb_clk_mux(UsbClkSel::Hsi48);
 
-        /*
-        unsafe {
-            let pwr = &*stm32::PWR::ptr();
-            pwr.cr3.modify(|_, w| w.usbregen().set_bit());
-            while pwr.cr3.read().usb33rdy().bit_is_clear() {}
-        }
-        */
-
         let mut timer2 = device.TIM2.timer(
             MilliSeconds::from_ticks(200).into_rate(),
             ccdr.peripheral.TIM2,
@@ -79,6 +71,7 @@ mod app {
 
         let gpio = gpio::GPIO::init(
             gpioc.pc7,
+            gpiog.pg3,
             Some(gpiob.pb12),
             Some(gpioc.pc11),
             Some(gpioc.pc10),
@@ -110,6 +103,8 @@ mod app {
             Some(gpioa.pa2),
             Some(gpiob.pb14),
             Some(gpiob.pb15),
+            None,
+            None,
         );
 
         let (pin_dm, pin_dp) = { (gpioa.pa11.into_alternate(), gpioa.pa12.into_alternate()) };

@@ -195,8 +195,8 @@ impl Flash {
     /// - Erasing sets all the bits in the given area to `1`.
     /// - The memory array of the IS25LP064A/032A is organized into uniform 4
     ///   Kbyte sectors or
-    /// 32/64 Kbyte uniform blocks (a block consists of eight/sixteen adjacent
-    /// sectors respectively).
+    ///   32/64 Kbyte uniform blocks (a block consists of eight/sixteen adjacent
+    ///   sectors respectively).
     pub fn erase(&mut self, op: FlashErase) -> NBFlashResult<()> {
         match self.state {
             FlashState::Erasing(e) => {
@@ -266,9 +266,9 @@ impl Flash {
     ///   to a 1.
     /// - The starting byte can be anywhere within the page (256 byte chunk).
     ///   When the end of the
-    /// page is reached, the address will wrap around to the beginning of the
-    /// same page. If the data to be programmed are less than a full page,
-    /// the data of all other bytes on the same page will remain unchanged.
+    ///   page is reached, the address will wrap around to the beginning of the
+    ///   same page. If the data to be programmed are less than a full page,
+    ///   the data of all other bytes on the same page will remain unchanged.
     pub fn program(&mut self, address: u32, data: &[u8]) -> NBFlashResult<()> {
         let prog = |flash: &mut Self, chunk_index: u32| -> NBFlashResult<()> {
             if let Some(chunk) = data.chunks(32).nth(chunk_index as usize) {

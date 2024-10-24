@@ -1,5 +1,6 @@
 //! Audio module. Handles audio startup and I/O.
 //! As well as converting between the S24 input and f32 for processing.
+use core::convert::Infallible;
 use cortex_m::prelude::_embedded_hal_blocking_i2c_Write;
 use log::info;
 use stm32h7xx_hal::{
@@ -261,8 +262,14 @@ impl Audio {
                 });
 
                 let max_transfer_size = block_size * 2;
-                let input = Input::new(unsafe { &mut RX_BUFFER }, max_transfer_size);
-                let output = Output::new(unsafe { &mut TX_BUFFER }, max_transfer_size);
+                let input = Input::new(
+                    unsafe { &*core::ptr::addr_of!(RX_BUFFER) },
+                    max_transfer_size,
+                );
+                let output = Output::new(
+                    unsafe { &mut *core::ptr::addr_of_mut!(TX_BUFFER) },
+                    max_transfer_size,
+                );
 
                 info!(
                     "Setup up Audio DMA: input: {:?}, output: {:?}",
@@ -360,20 +367,23 @@ impl Audio {
                     sai.enable_dma(SaiChannel::ChannelB);
                 });
 
-                output_stream.start(|sai1_rb| {
+                // There is no need to wait in this configuration.
+                output_stream.start(|_sai1_rb| {
                     sai.enable_dma(SaiChannel::ChannelA);
-
-                    // wait until sai1's fifo starts to receive data
-                    info!("Sai1 fifo waiting to receive data.");
-                    while sai1_rb.cha().sr.read().flvl().is_empty() {}
-                    info!("Audio started!");
-                    sai.enable();
-                    sai.try_send(0, 0).unwrap();
                 });
 
+                info!("Audio started!");
+                sai.enable();
+
                 let max_transfer_size = block_size * 2;
-                let input = Input::new(unsafe { &mut RX_BUFFER }, max_transfer_size);
-                let output = Output::new(unsafe { &mut TX_BUFFER }, max_transfer_size);
+                let input = Input::new(
+                    unsafe { &*core::ptr::addr_of!(RX_BUFFER) },
+                    max_transfer_size,
+                );
+                let output = Output::new(
+                    unsafe { &mut *core::ptr::addr_of_mut!(TX_BUFFER) },
+                    max_transfer_size,
+                );
 
                 info!(
                     "Setup up Audio DMA: input: {:?}, output: {:?}",
@@ -431,21 +441,6 @@ impl Audio {
         }
     }
 
-    /// Directly pass received audio to output without any processing.
-    pub fn passthru(&mut self) {
-        // Copy data
-        if self.read() {
-            let mut index = 0;
-            let mut out_index = self.output.index;
-            while index < self.max_transfer_size {
-                self.output.buffer[out_index] = self.input.buffer[index + self.input.index];
-                self.output.buffer[out_index + 1] = self.input.buffer[index + self.input.index + 1];
-                index += 2;
-                out_index += 2;
-            }
-        }
-    }
-
     /// Gets the audio input from the DMA memory and writes it to buffer
     pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) -> bool {
         if self.read() {
@@ -469,6 +464,44 @@ impl Audio {
             ));
         }
         None
+    }
+
+    /// Process audio frame-by-frame.
+    #[inline]
+    pub fn for_each<F>(&mut self, mut process: F)
+    where
+        F: FnMut(f32, f32) -> (f32, f32),
+    {
+        self.try_for_each::<_, Infallible>(|left, right| Ok(process(left, right)))
+            .unwrap()
+    }
+
+    /// Process audio frame-by-frame.
+    ///
+    /// If the process closure returns an error,
+    /// it's bubbled up to the callsite of this method.
+    pub fn try_for_each<F, E>(&mut self, mut process: F) -> Result<(), E>
+    where
+        F: FnMut(f32, f32) -> Result<(f32, f32), E>,
+    {
+        if self.read() {
+            let input = self.input.buffer
+                [self.input.index..self.input.index + self.max_transfer_size]
+                .chunks_exact(2);
+
+            let output = self.output.buffer
+                [self.output.index..self.output.index + self.max_transfer_size]
+                .chunks_exact_mut(2);
+
+            for (input, output) in input.zip(output) {
+                let (left, right) =
+                    process(S24(input[0] as i32).into(), S24(input[1] as i32).into())?;
+                output[0] = S24::from(left).into();
+                output[1] = S24::from(right).into();
+            }
+        }
+
+        Ok(())
     }
 
     /// Push data to the DMA buffer for output
