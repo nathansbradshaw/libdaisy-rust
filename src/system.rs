@@ -104,17 +104,14 @@ impl MinimalSystem {
     }
 
     pub fn new(resources: SystemResources) -> Self {
-        let mut delay = Delay::new(resources.syst, *resources.clocks);
+        let delay = Delay::new(resources.syst, *resources.clocks);
 
         let gpioa = resources.gpioa.split(resources.gpioa_rec);
         let gpiob = resources.gpiob.split(resources.gpiob_rec);
         let gpioc = resources.gpioc.split(resources.gpioc_rec);
         let gpiod = resources.gpiod.split(resources.gpiod_rec);
-        let gpioe = resources.gpioe.split(resources.gpioe_rec);
         let gpiof = resources.gpiof.split(resources.gpiof_rec);
         let gpiog = resources.gpiog.split(resources.gpiog_rec);
-        let gpioh = resources.gpioh.split(resources.gpioh_rec);
-        let gpioi = resources.gpioi.split(resources.gpioi_rec);
 
         // Set up GPIOs
         let gpio = crate::gpio::GPIO::init(
