@@ -1,16 +1,17 @@
+//! Types and functions for interfacing with the Daisy bootloader.
+
 use core::mem::MaybeUninit;
-use cortex_m::prelude::*;
-use stm32h7xx_hal::{delay::Delay, pac::SCB};
+use stm32h7xx_hal::pac::SCB;
 
 #[link_section = ".boot_info"]
-static mut BOOT_INFO: MaybeUninit<[u32; 3]> = MaybeUninit::uninit();
+static mut BOOT_INFO: MaybeUninit<[u32; 4]> = MaybeUninit::uninit();
 
-unsafe fn get_info() -> [u32; 3] {
+unsafe fn get_info() -> [u32; 4] {
     let info_ptr = core::ptr::addr_of!(BOOT_INFO);
     unsafe { core::ptr::read_volatile(info_ptr).assume_init() }
 }
 
-unsafe fn set_info(info: [u32; 3]) {
+unsafe fn set_info(info: [u32; 4]) {
     let info_ptr = core::ptr::addr_of_mut!(BOOT_INFO);
     unsafe {
         core::ptr::write_volatile(info_ptr, MaybeUninit::new(info));
@@ -19,23 +20,23 @@ unsafe fn set_info(info: [u32; 3]) {
 
 // These should probably be defined in the linker,
 // but this'll do for now.
-const D1_AXIFLASH_BASE: u32 = 0x0800_0000;
-const D1_ITCMRAM_BASE: u32 = 0x0000_0000;
-const D1_DTCMRAM_BASE: u32 = 0x2000_0000;
+pub const D1_AXIFLASH_BASE: u32 = 0x0800_0000;
+pub const D1_ITCMRAM_BASE: u32 = 0x0000_0000;
+pub const D1_DTCMRAM_BASE: u32 = 0x2000_0000;
 pub const D1_AXISRAM_BASE: u32 = 0x2400_0000;
-const D2_AXISRAM_BASE: u32 = 0x3000_0000;
-const D3_SRAM_BASE: u32 = 0x3800_0000;
-const SDRAM_BASE: u32 = 0xC000_0000;
-const QSPI_BASE: u32 = 0x9000_0000;
+pub const D2_AXISRAM_BASE: u32 = 0x3000_0000;
+pub const D3_SRAM_BASE: u32 = 0x3800_0000;
+pub const SDRAM_BASE: u32 = 0xC000_0000;
+pub const QSPI_BASE: u32 = 0x9000_0000;
 
-const INTERNAL_FLASH_SIZE: u32 = 0x20000;
-const ITCMRAM_SIZE: u32 = 0x10000;
-const DTCMRAM_SIZE: u32 = 0x20000;
+pub const INTERNAL_FLASH_SIZE: u32 = 0x20000;
+pub const ITCMRAM_SIZE: u32 = 0x10000;
+pub const DTCMRAM_SIZE: u32 = 0x20000;
 pub const SRAM_D1_SIZE: u32 = 0x80000;
-const SRAM_D2_SIZE: u32 = 0x48000;
-const SRAM_D3_SIZE: u32 = 0x10000;
-const SDRAM_SIZE: u32 = 0x4000000;
-const QSPI_SIZE: u32 = 0x800000;
+pub const SRAM_D2_SIZE: u32 = 0x48000;
+pub const SRAM_D3_SIZE: u32 = 0x10000;
+pub const SDRAM_SIZE: u32 = 0x4000000;
+pub const QSPI_SIZE: u32 = 0x800000;
 
 const D1_AXIFLASH_END: u32 = D1_AXIFLASH_BASE + INTERNAL_FLASH_SIZE - 1;
 const D1_ITCMRAM_END: u32 = D1_ITCMRAM_BASE + ITCMRAM_SIZE - 1;
@@ -46,6 +47,7 @@ const D3_SRAM_END: u32 = D3_SRAM_BASE + SRAM_D3_SIZE - 1;
 const SDRAM_END: u32 = SDRAM_BASE + SDRAM_SIZE - 1;
 const QSPI_END: u32 = QSPI_BASE + QSPI_SIZE - 1;
 
+/// Describes a region in memory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MemoryRegion {
     InternalFlash,
@@ -87,14 +89,22 @@ impl MemoryRegion {
 /// Describes how the Daisy bootloader should behave.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DaisyBootType {
-    /// This is what the bootloader writes when it resets itself.
+    /// This causes the bootloader to immediately jump to
+    /// the target application, assuming its address has been loaded in.
     ///
-    /// TODO: document better
+    /// This should not be set by any code outside the bootloader.
     Jump,
     /// Jump immediately to the target application.
     SkipTimeout,
     /// Wait in the bootloader indefinitely.
     InfiniteTimeout,
+    /// The target application encountered an unrecoverable error.
+    ///
+    /// This can allow the bootloader to break otherwise infinite
+    /// boot-reset loops. By default, the bootloader will
+    /// stop jumping back to the application if this has been
+    /// set five times.
+    Panic,
 }
 
 impl DaisyBootType {
@@ -112,6 +122,8 @@ impl DaisyBootType {
             Self::Jump => 0xDEADBEEF,
             Self::SkipTimeout => 0x5AFEB007,
             Self::InfiniteTimeout => 0xB0074EFA,
+            // You gotta be careful what you eat.
+            Self::Panic => 0x8BADF00D,
         }
     }
 
@@ -120,6 +132,7 @@ impl DaisyBootType {
             0xDEADBEEF => Some(Self::Jump),
             0x5AFEB007 => Some(Self::SkipTimeout),
             0xB0074EFA => Some(Self::InfiniteTimeout),
+            0x8BADF00D => Some(Self::Panic),
             _ => None,
         }
     }
@@ -143,6 +156,7 @@ impl DaisyBootType {
     }
 }
 
+/// The bootloader version.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Version {
     /// Any version below v6.
@@ -218,6 +232,23 @@ pub unsafe fn set_application_address(address: u32) {
     }
 }
 
+/// A counter for how many times an application has
+/// reset itself in a panicked state.
+pub fn panic_count() -> u32 {
+    let info = unsafe { get_info() };
+    info[3]
+}
+
+/// Set the panic count.
+pub unsafe fn set_panic_count(value: u32) {
+    let mut info = unsafe { get_info() };
+    info[3] = value;
+
+    unsafe {
+        set_info(info);
+    }
+}
+
 /// Describes which bootloader the device will reset to.
 #[derive(Debug)]
 pub enum BootType {
@@ -234,17 +265,36 @@ pub enum BootType {
 /// Panics if the Daisy bootloader is selected but
 /// the program is running from internal flash, meaning
 /// no Daisy bootloader can be present.
-pub fn reset_to_bootloader(boot_type: BootType, scb: &SCB, delay: &mut Delay) -> ! {
+pub fn reset_to_bootloader(boot_type: BootType) -> ! {
+    // # SAFETY
+    //
+    // SCB and CPUID are zero-sized types. They are passed around
+    // as a means of maintaining correctness.
+    //
+    // However, since we're resetting the device here (or panicking),
+    // requiring that we pass them in can be a little onerous.
+    //
+    // TODO: In the event of a panic, invalid configurations may
+    // be observed. There's no guarantee that the panic handler
+    // will restore the device to a sound configuration.
+    //
+    // This should probably be split out into an unsafe reset function.
+    let mut scb: SCB = unsafe { core::mem::transmute(()) };
+    let mut cpuid = unsafe { core::mem::transmute(()) };
+    scb.disable_dcache(&mut cpuid);
+
     match boot_type {
         BootType::Stm(boot_pin) => {
             let mut pin = boot_pin.into_push_pull_output();
             pin.set_high();
 
             // Allow capacitor to charge.
+            use crate::delay::DelayMs;
+            let mut delay = crate::delay::CycleDelay::new();
             delay.delay_ms(10u8);
         }
         BootType::Daisy(daisy_type) => {
-            let region = MemoryRegion::from_vtable(scb);
+            let region = MemoryRegion::from_vtable(&scb);
 
             if matches!(region, Some(MemoryRegion::InternalFlash)) {
                 panic!("Attempted to jump to non-existent Daisy bootloader");
