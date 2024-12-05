@@ -29,7 +29,7 @@ pub enum FlashErase {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FlashState {
     Idle,
-    Programming { address: u32, chunk: u32 },
+    Programming { address: u32, chunk: usize },
     Erasing(FlashErase),
 }
 
@@ -37,6 +37,8 @@ enum FlashState {
 pub struct Flash {
     qspi: stm32h7xx_hal::xspi::Qspi<stm32h7xx_hal::stm32::QUADSPI>,
     state: FlashState,
+    page_buffer: [u8; 256],
+    page_len: usize,
 }
 
 /*
@@ -167,6 +169,8 @@ impl Flash {
         let mut flash = Flash {
             qspi,
             state: FlashState::Idle,
+            page_buffer: [0u8; 256],
+            page_len: 0,
         };
 
         //enable quad
@@ -189,14 +193,58 @@ impl Flash {
         flash
     }
 
+    pub fn begin_erase(&mut self, op: FlashErase) -> NBFlashResult<()> {
+        match self.state {
+            FlashState::Idle => {
+                self.enable_write()?;
+                self.wait();
+                match op {
+                    FlashErase::Chip => self.write_command(0x60),
+                    FlashErase::Sector4K(a) => self.qspi.write_extended(
+                        QspiWord::U8(0xD7),
+                        QspiWord::U24(a as _),
+                        QspiWord::None,
+                        &[],
+                    ),
+                    FlashErase::Block32K(a) => self.qspi.write_extended(
+                        QspiWord::U8(0x52),
+                        QspiWord::U24(a as _),
+                        QspiWord::None,
+                        &[],
+                    ),
+                    FlashErase::Block64K(a) => self.qspi.write_extended(
+                        QspiWord::U8(0xD8),
+                        QspiWord::U24(a as _),
+                        QspiWord::None,
+                        &[],
+                    ),
+                }?;
+                self.state = FlashState::Erasing(op);
+                Ok(())
+            }
+            _ => {
+                return Err(nbError::WouldBlock);
+            }
+        }
+    }
+
+    pub fn poll_erase(&mut self) -> NBFlashResult<()> {
+        if self.write_complete()? {
+            self.state = FlashState::Idle;
+            Ok(())
+        } else {
+            Err(nbError::WouldBlock)
+        }
+    }
+
     /// Erase all or some of the chip.
     ///
     /// Remarks:
     /// - Erasing sets all the bits in the given area to `1`.
     /// - The memory array of the IS25LP064A/032A is organized into uniform 4
     ///   Kbyte sectors or
-    /// 32/64 Kbyte uniform blocks (a block consists of eight/sixteen adjacent
-    /// sectors respectively).
+    ///   32/64 Kbyte uniform blocks (a block consists of eight/sixteen adjacent
+    ///   sectors respectively).
     pub fn erase(&mut self, op: FlashErase) -> NBFlashResult<()> {
         match self.state {
             FlashState::Erasing(e) => {
@@ -266,17 +314,17 @@ impl Flash {
     ///   to a 1.
     /// - The starting byte can be anywhere within the page (256 byte chunk).
     ///   When the end of the
-    /// page is reached, the address will wrap around to the beginning of the
-    /// same page. If the data to be programmed are less than a full page,
-    /// the data of all other bytes on the same page will remain unchanged.
+    ///   page is reached, the address will wrap around to the beginning of the
+    ///   same page. If the data to be programmed are less than a full page,
+    ///   the data of all other bytes on the same page will remain unchanged.
     pub fn program(&mut self, address: u32, data: &[u8]) -> NBFlashResult<()> {
-        let prog = |flash: &mut Self, chunk_index: u32| -> NBFlashResult<()> {
-            if let Some(chunk) = data.chunks(32).nth(chunk_index as usize) {
+        let prog = |flash: &mut Self, chunk_index: usize| -> NBFlashResult<()> {
+            if let Some(chunk) = data.chunks(32).nth(chunk_index) {
                 flash.enable_write()?;
                 flash.wait();
                 flash.qspi.write_extended(
                     QspiWord::U8(0x02),
-                    QspiWord::U24(address + chunk_index * 32),
+                    QspiWord::U24(address + chunk_index as u32 * 32),
                     QspiWord::None,
                     chunk,
                 )?;
@@ -304,6 +352,63 @@ impl Flash {
                 }
             }
             _ => panic!("invalid state for programming"),
+        }
+    }
+
+    pub fn begin_program(&mut self, address: u32, data: &[u8]) -> NBFlashResult<()> {
+        for (src, dest) in data.iter().zip(self.page_buffer.iter_mut()) {
+            *dest = *src;
+        }
+        self.page_len = data.len().min(256);
+
+        match self.state {
+            FlashState::Idle => {
+                self.enable_write()?;
+                self.wait();
+                self.qspi.write_extended(
+                    QspiWord::U8(0x02),
+                    QspiWord::U24(address),
+                    QspiWord::None,
+                    &self.page_buffer[..self.page_len.min(32)],
+                )?;
+                self.state = FlashState::Programming { address, chunk: 1 };
+
+                Ok(())
+            }
+            _ => Err(nbError::WouldBlock),
+        }
+    }
+
+    pub fn poll_program(&mut self) -> NBFlashResult<()> {
+        match self.state {
+            FlashState::Programming { address, chunk } => {
+                if !self.write_complete()? {
+                    return Err(nbError::WouldBlock);
+                }
+
+                let offset = chunk * 32;
+
+                if offset >= self.page_len {
+                    self.state = FlashState::Idle;
+                    return Ok(());
+                }
+
+                self.enable_write()?;
+                self.wait();
+                self.qspi.write_extended(
+                    QspiWord::U8(0x02),
+                    QspiWord::U24(address + offset as u32),
+                    QspiWord::None,
+                    &self.page_buffer[offset..(offset + 32).min(self.page_len)],
+                )?;
+                self.state = FlashState::Programming {
+                    address,
+                    chunk: chunk + 1,
+                };
+
+                Err(nbError::WouldBlock)
+            }
+            _ => Ok(()),
         }
     }
 }

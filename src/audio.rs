@@ -1,5 +1,6 @@
 //! Audio module. Handles audio startup and I/O.
 //! As well as converting between the S24 input and f32 for processing.
+use core::convert::Infallible;
 use cortex_m::prelude::_embedded_hal_blocking_i2c_Write;
 use log::info;
 use stm32h7xx_hal::{
@@ -115,14 +116,7 @@ impl From<S24> for u32 {
 
 impl From<f32> for S24 {
     fn from(x: f32) -> S24 {
-        let x = if x <= FBIPMIN {
-            FBIPMIN
-        } else if x >= FBIPMAX {
-            FBIPMAX
-        } else {
-            x
-        };
-        S24((x * F32_TO_S24_SCALE) as i32)
+        S24((x.clamp(FBIPMIN, FBIPMAX) * F32_TO_S24_SCALE) as i32)
     }
 }
 
@@ -170,7 +164,7 @@ impl Audio {
         block_size: usize,
     ) -> Self {
         match board_version {
-            crate::system::Version::Seed | crate::system::Version::Seed1_1 => {
+            crate::system::Version::Seed1_1 => {
                 let dma_buffer_size = block_size * 2 * 2;
                 let rx_buffer: &'static mut [u32] =
                     unsafe { &mut RX_BUFFER.as_mut_slice()[..dma_buffer_size] };
@@ -227,45 +221,28 @@ impl Audio {
                     I2sUsers::new(master_config).add_slave(slave_config),
                 );
 
-                // Besides this CODEC startup, the code for the Seed and
-                // Seed 1.1 is the same.
-                match board_version {
-                    crate::system::Version::Seed1_1 => {
-                        info!("Setting up WM8731 Audio Codec...");
-                        let i2c2_pins = (
-                            i2c_scl.into_alternate_open_drain(),
-                            i2c_sda.into_alternate_open_drain(),
-                        );
+                info!("Setting up WM8731 Audio Codec...");
+                let i2c2_pins = (
+                    i2c_scl.into_alternate_open_drain(),
+                    i2c_sda.into_alternate_open_drain(),
+                );
 
-                        let mut i2c =
-                            i2c2_d.i2c(i2c2_pins, Hertz::from_raw(100_000), i2c2_p, clocks);
+                let mut i2c = i2c2_d.i2c(i2c2_pins, Hertz::from_raw(100_000), i2c2_p, clocks);
 
-                        let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
+                let codec_i2c_address: u8 = 0x1a; // or 0x1b if CSB is high
 
-                        // Go through configuration setup
-                        for (register, value) in REGISTER_CONFIG {
-                            let register: u8 = (*register).into();
-                            let value: u8 = *value;
-                            let byte1: u8 =
-                                ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
-                            let byte2: u8 = value;
-                            let bytes = [byte1, byte2];
+                // Go through configuration setup
+                for (register, value) in REGISTER_CONFIG {
+                    let register: u8 = (*register).into();
+                    let value: u8 = *value;
+                    let byte1: u8 =
+                        ((register << 1) & 0b1111_1110) | ((value >> 7) & 0b0000_0001u8);
+                    let byte2: u8 = value;
+                    let bytes = [byte1, byte2];
 
-                            i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
+                    i2c.write(codec_i2c_address, &bytes).unwrap_or_default();
 
-                            delay.delay_ms(1);
-                        }
-                    }
-                    crate::system::Version::Seed => {
-                        info!("Setting up AK4556 Audio Codec...");
-                        let mut ak_reset = i2c_sda
-                            .into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::High);
-                        delay.delay_ms(1);
-                        ak_reset.set_low();
-                        delay.delay_ms(1);
-                        ak_reset.set_high();
-                    }
-                    crate::system::Version::Seed2DFM => unreachable!(),
+                    delay.delay_ms(1);
                 }
 
                 info!("Start audio stream...");
@@ -285,8 +262,14 @@ impl Audio {
                 });
 
                 let max_transfer_size = block_size * 2;
-                let input = Input::new(unsafe { &mut RX_BUFFER }, max_transfer_size);
-                let output = Output::new(unsafe { &mut TX_BUFFER }, max_transfer_size);
+                let input = Input::new(
+                    unsafe { &*core::ptr::addr_of!(RX_BUFFER) },
+                    max_transfer_size,
+                );
+                let output = Output::new(
+                    unsafe { &mut *core::ptr::addr_of_mut!(TX_BUFFER) },
+                    max_transfer_size,
+                );
 
                 info!(
                     "Setup up Audio DMA: input: {:?}, output: {:?}",
@@ -304,7 +287,7 @@ impl Audio {
                     max_transfer_size,
                 }
             }
-            crate::system::Version::Seed2DFM => {
+            crate::system::Version::Seed2DFM | crate::system::Version::Seed => {
                 let dma_buffer_size = block_size * 2 * 2;
                 let rx_buffer: &'static mut [u32] =
                     unsafe { &mut RX_BUFFER.as_mut_slice()[..dma_buffer_size] };
@@ -361,28 +344,46 @@ impl Audio {
                     I2sUsers::new(master_config).add_slave(slave_config),
                 );
 
-                info!("Setting up PCM3060 Audio Codec...");
-                i2c_sda.into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::Low);
+                match board_version {
+                    crate::system::Version::Seed => {
+                        info!("Setting up AK4556/PCM3060 Audio CODEC...");
+                        let mut ak_reset = i2c_sda
+                            .into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::High);
+                        delay.delay_ms(1);
+                        ak_reset.set_low();
+                        delay.delay_ms(1);
+                        ak_reset.set_high();
+                    }
+                    crate::system::Version::Seed2DFM => {
+                        // Set deemphasis low
+                        info!("Setting up PCM3060 Audio CODEC...");
+                        i2c_sda.into_push_pull_output_in_state(stm32h7xx_hal::gpio::PinState::Low);
+                    }
+                    _ => unreachable!(),
+                }
 
                 info!("Start audio stream...");
                 input_stream.start(|_sai1_rb| {
                     sai.enable_dma(SaiChannel::ChannelB);
                 });
 
-                output_stream.start(|sai1_rb| {
+                // There is no need to wait in this configuration.
+                output_stream.start(|_sai1_rb| {
                     sai.enable_dma(SaiChannel::ChannelA);
-
-                    // wait until sai1's fifo starts to receive data
-                    info!("Sai1 fifo waiting to receive data.");
-                    while sai1_rb.cha().sr.read().flvl().is_empty() {}
-                    info!("Audio started!");
-                    sai.enable();
-                    sai.try_send(0, 0).unwrap();
                 });
 
+                info!("Audio started!");
+                sai.enable();
+
                 let max_transfer_size = block_size * 2;
-                let input = Input::new(unsafe { &mut RX_BUFFER }, max_transfer_size);
-                let output = Output::new(unsafe { &mut TX_BUFFER }, max_transfer_size);
+                let input = Input::new(
+                    unsafe { &*core::ptr::addr_of!(RX_BUFFER) },
+                    max_transfer_size,
+                );
+                let output = Output::new(
+                    unsafe { &mut *core::ptr::addr_of_mut!(TX_BUFFER) },
+                    max_transfer_size,
+                );
 
                 info!(
                     "Setup up Audio DMA: input: {:?}, output: {:?}",
@@ -440,21 +441,6 @@ impl Audio {
         }
     }
 
-    /// Directly pass received audio to output without any processing.
-    pub fn passthru(&mut self) {
-        // Copy data
-        if self.read() {
-            let mut index = 0;
-            let mut out_index = self.output.index;
-            while index < self.max_transfer_size {
-                self.output.buffer[out_index] = self.input.buffer[index + self.input.index];
-                self.output.buffer[out_index + 1] = self.input.buffer[index + self.input.index + 1];
-                index += 2;
-                out_index += 2;
-            }
-        }
-    }
-
     /// Gets the audio input from the DMA memory and writes it to buffer
     pub fn get_stereo(&mut self, buffer: &mut AudioBuffer) -> bool {
         if self.read() {
@@ -478,6 +464,44 @@ impl Audio {
             ));
         }
         None
+    }
+
+    /// Process audio frame-by-frame.
+    #[inline]
+    pub fn for_each<F>(&mut self, mut process: F)
+    where
+        F: FnMut(f32, f32) -> (f32, f32),
+    {
+        self.try_for_each::<_, Infallible>(|left, right| Ok(process(left, right)))
+            .unwrap()
+    }
+
+    /// Process audio frame-by-frame.
+    ///
+    /// If the process closure returns an error,
+    /// it's bubbled up to the callsite of this method.
+    pub fn try_for_each<F, E>(&mut self, mut process: F) -> Result<(), E>
+    where
+        F: FnMut(f32, f32) -> Result<(f32, f32), E>,
+    {
+        if self.read() {
+            let input = self.input.buffer
+                [self.input.index..self.input.index + self.max_transfer_size]
+                .chunks_exact(2);
+
+            let output = self.output.buffer
+                [self.output.index..self.output.index + self.max_transfer_size]
+                .chunks_exact_mut(2);
+
+            for (input, output) in input.zip(output) {
+                let (left, right) =
+                    process(S24(input[0] as i32).into(), S24(input[1] as i32).into())?;
+                output[0] = S24::from(left).into();
+                output[1] = S24::from(right).into();
+            }
+        }
+
+        Ok(())
     }
 
     /// Push data to the DMA buffer for output

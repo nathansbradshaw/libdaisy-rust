@@ -17,7 +17,6 @@ mod app {
     #[local]
     struct Local {
         audio: audio::Audio,
-        buffer: audio::AudioBuffer,
     }
 
     #[init]
@@ -32,15 +31,12 @@ mod app {
         let ccdr = system::System::init_clocks(device.PWR, device.RCC, &device.SYSCFG);
         let system = libdaisy::system_init!(core, device, ccdr, BLOCK_SIZE);
 
-        let buffer = [(0.0, 0.0); audio::BLOCK_SIZE_MAX];
-
         info!("Startup done!!");
 
         (
             Shared {},
             Local {
                 audio: system.audio,
-                buffer,
             },
             init::Monotonics(),
         )
@@ -56,17 +52,10 @@ mod app {
     }
 
     // Interrupt handler for audio
-    #[task(binds = DMA1_STR1, local = [audio, buffer], priority = 8)]
+    #[task(binds = DMA1_STR1, local = [audio], priority = 8)]
     fn audio_handler(ctx: audio_handler::Context) {
         let audio = ctx.local.audio;
-        let buffer = ctx.local.buffer;
 
-        if audio.get_stereo(buffer) {
-            for (left, right) in &buffer.as_slice()[..BLOCK_SIZE] {
-                let _ = audio.push_stereo((*left, *right));
-            }
-        } else {
-            info!("Error reading data!");
-        }
+        audio.for_each(|left, right| (left, right));
     }
 }
